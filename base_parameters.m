@@ -16,7 +16,7 @@ function param = base_parameters
     F_2 = [0; kb/mb];
     
     % Discretization
-    Ts = 10e-5;
+    Ts = 10e-2;
     % first order
 %     Ad_1_ = (eye(2) + Ts*A_1);
 %     Bd_1_ = B_1*Ts;
@@ -55,5 +55,7 @@ function param = base_parameters
     param.C_2 = C_2;
     param.U = U;
     param.W = W;
+    param.global_sysd = sys_d;
+    
   
 end
