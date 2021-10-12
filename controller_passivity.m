@@ -3,20 +3,20 @@ function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, U, W)
     mi = size(B,2);
     % Decision Variables
     E = sdpvar(ni, ni); %symmetric P.D
-    H = diag(sdpvar(ni,1, 'full')); % diagonal matrix as defined in Th.1
+    H = diag(sdpvar(ni,1)); % diagonal matrix as defined in Th.1
     G = sdpvar(mi,ni, 'full');
-    S = diag(sdpvar(mi,1, 'full')); % diagonal matrix as defined in Th.1
+    S = diag(sdpvar(mi,1)); % diagonal matrix as defined in Th.1
     
     constraints = [];
-    objective = trace(H);
+    objective = 0%trace(H);
     
     % equation 7
     LMI = [E, 1/2*E*C', (A*E + B*G)', E;...
            1/2*C*E, 1/2*S + 1/2*S', F', zeros(size(F',1),size(E,2));...
            (A*E+B*G), F, E, zeros(size(F,1), size(E,2));...
-           E, zeros(size(E,1), size(F,2)), zeros(size(E,1), size(E,2)), H];
+           E, zeros(size(E,1), size(F,2)), zeros(size(E)), H];
    
-    constraints = [constraints, LMI >= eye(size(LMI,1))];
+    constraints = [constraints, LMI >= -1e-2*eye(size(LMI,1))];
     
     %Theorem 1
     epsilon_i = sdpvar(1);
