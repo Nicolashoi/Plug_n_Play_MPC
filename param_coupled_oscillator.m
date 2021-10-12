@@ -1,6 +1,6 @@
 %% Parameter file for a coupled oscillator %%
 % Author:
-% Nicolas Hoischen
+%   Nicolas Hoischen
 % BRIEF: 
 %   Parameter definition for a simple coupled oscillator model
 %   Two masses ma and mb

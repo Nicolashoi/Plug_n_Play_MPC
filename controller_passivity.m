@@ -1,24 +1,39 @@
+%% YALMIP & MOSEK Semi-definite program
+% Author:
+%   Nicolas Hoischen
+% BRIEF:
+%   Controller function to compute Ki to make the subsystem passive. 
+% INPUT:
+%   Ai, Bi, Ci, Fi: LTI dynamics of subsystem i
+%   U: L_tilde*C
+%   W: C^T * L_tilde where L_tilde is the augmented laplacian
+% OUTPUT:
+%   Ki: decentralized passivity-based control state feedback gain
+%   Di: positive-definite diagonal matrix
+%   Pi: positive-definite matrix
+%   Gamma_i: positive-definite diagonal matrix
+
 function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, U, W)
     ni = size(A,1);
     mi = size(B,2);
-    % Decision Variables
+    constraints = [];
+    objective = 0;%trace(H);
+    
+    %% Decision Variables
     E = sdpvar(ni, ni); %symmetric P.D
     H = diag(sdpvar(ni,1)); % diagonal matrix as defined in Th.1
     G = sdpvar(mi,ni, 'full');
     S = diag(sdpvar(mi,1)); % diagonal matrix as defined in Th.1
-    
-    constraints = [];
-    objective = 0%trace(H);
-    
-    % equation 7
+   
+    %% Equation 7
     LMI = [E, 1/2*E*C', (A*E + B*G)', E;...
            1/2*C*E, 1/2*S + 1/2*S', F', zeros(size(F',1),size(E,2));...
            (A*E+B*G), F, E, zeros(size(F,1), size(E,2));...
            E, zeros(size(E,1), size(F,2)), zeros(size(E)), H];
-   
-    constraints = [constraints, LMI >= -1e-2*eye(size(LMI,1))];
-    
-    %Theorem 1
+    % add to constraints   
+    constraints = [constraints, LMI >= -1e-2*eye(size(LMI,1))]; 
+
+    %% Theorem 1
     epsilon_i = sdpvar(1);
     constraints = [constraints, epsilon_i >= 0.1, E >= epsilon_i*eye(ni), ...
                    H >= 0.01*eye(ni), S >= 0.01*eye(mi)];
@@ -31,11 +46,9 @@ function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, U, W)
             constraints = [constraints, S(k,k) <= 1/norm(U(k,:),1)]; 
        end
     end
-    
+    %% OPTIMIZER
     optimize(constraints, objective, sdpsettings('solver', 'MOSEK'))
-    % MAP
-    Pi = inv(value(E));
-    Ki = value(G)*Pi;
-    Gamma_i = inv(value(H));
-    Di = value(S);
+    %% MAP
+    Pi = inv(value(E)); Ki = value(G)*Pi;
+    Gamma_i = inv(value(H)); Di = value(S);
 end
