@@ -3,6 +3,8 @@
 %   Nicolas Hoischen
 % BRIEF:
 %   Controller function to compute Ki to make the subsystem passive. 
+%   From "Passivity-Based Decentralized Control for Discrete-Time Large-Scale
+%         Systems"
 % INPUT:
 %   Ai, Bi, Ci, Fi: LTI dynamics of subsystem i
 %   U: L_tilde*C
@@ -47,7 +49,7 @@ function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, U, W)
        end
     end
     %% OPTIMIZER
-    optimize(constraints, objective, sdpsettings('solver', 'MOSEK'))
+    optimize(constraints, objective, sdpsettings('solver', 'MOSEK'));
     %% MAP
     Pi = inv(value(E)); Ki = value(G)*Pi;
     Gamma_i = inv(value(H)); Di = value(S);
