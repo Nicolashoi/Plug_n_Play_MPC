@@ -51,3 +51,20 @@ sysd_pass = ss(Ad+Bd*Kpassive, [],Cd, [], -1);
  grid on
  hold off
  
+ %% Test 2 distributed connected DGU's
+ param = param_2_DGU;
+ [K1, D1, P1, Gamma_1] = controller_passivity(param.A_1, param.B_1,...
+                                             param.C_1, param.F_1, ...
+                                             param.U, param.W);
+ [K2,D2, P2, Gamma_2] = controller_passivity(param.A_2, param.B_2,...
+                                            param.C_2, param.F_2, ...
+                                            param.U, param.W);
+% Construct subsystems
+sys1d = ss(param.A_1+param.B_1*K1, param.F_1, param.C_1, D1, -1);
+sys2d = ss(param.A_2+param.B_2*K2, param.F_2, param.C_2, D2, -1);
+disp("Is subsystem 1 passive ?"); disp(isPassive(sys1d));
+disp("Is subsystem 2 passive ?"); disp(isPassive(sys2d));  
+
+
+
+ 

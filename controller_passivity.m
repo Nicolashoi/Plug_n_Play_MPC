@@ -33,7 +33,7 @@ function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, U, W)
            (A*E+B*G), F, E, zeros(size(F,1), size(E,2));...
            E, zeros(size(E,1), size(F,2)), zeros(size(E)), H];
     % add to constraints   
-    constraints = [constraints, LMI >= -1e-2*eye(size(LMI,1))]; 
+    constraints = [constraints, LMI >= 0]; %0-1e-2*eye(size(LMI,1))]; 
 
     %% Theorem 1
     epsilon_i = sdpvar(1);
@@ -49,7 +49,9 @@ function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, U, W)
        end
     end
     %% OPTIMIZER
-    optimize(constraints, objective, sdpsettings('solver', 'MOSEK'));
+    ops = sdpsettings('solver', 'MOSEK');
+    ops.mosek.MSK_IPAR_INFEAS_REPORT_AUTO = 'MSK_ON';
+    optimize(constraints, objective, ops)
     %% MAP
     Pi = inv(value(E)); Ki = value(G)*Pi;
     Gamma_i = inv(value(H)); Di = value(S);
