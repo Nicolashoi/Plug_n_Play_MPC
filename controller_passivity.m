@@ -15,7 +15,12 @@
 %   Pi: positive-definite matrix
 %   Gamma_i: positive-definite diagonal matrix
 
-function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, U, W)
+function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, L_tilde,...
+                                                      C_global)
+    %% Interconnection Variables
+    U = L_tilde*C_global;
+    W = C_global'*L_tilde;
+
     ni = size(A,1);
     mi = size(B,2);
     constraints = [];
@@ -36,10 +41,11 @@ function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, U, W)
     constraints = [constraints, LMI >= 0]; %0-1e-2*eye(size(LMI,1))]; 
 
     %% Theorem 1
-    epsilon_i = sdpvar(1);
-    constraints = [constraints, epsilon_i >= 0.1, E >= epsilon_i*eye(ni), ...
-                   H >= 0.01*eye(ni), S >= 0.01*eye(mi)];
-    epsilon_0 = 0.5;
+    %epsilon_i = sdpvar(1); %define value
+    epsilon_i = 1e-5;
+    constraints = [constraints, E >= epsilon_i*eye(ni), ...
+                   H >= epsilon_i*eye(ni), S >= epsilon_i*eye(mi)];
+    epsilon_0 = 1e-5;
     for j=1:size(H,1)
         constraints = [constraints, H(j,j) <= 1/(norm(W(j,:),1)+ epsilon_0)];
     end
