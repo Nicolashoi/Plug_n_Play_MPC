@@ -55,9 +55,12 @@ function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, L_tilde,...
        end
     end
     %% OPTIMIZER
-    ops = sdpsettings('solver', 'MOSEK');
-    ops.mosek.MSK_IPAR_INFEAS_REPORT_AUTO = 'MSK_ON';
-    optimize(constraints, objective, ops)
+    ops = sdpsettings('solver', 'MOSEK', 'verbose',0);
+    %ops.mosek.MSK_IPAR_INFEAS_REPORT_AUTO = 'MSK_ON';
+    diagnostics = optimize(constraints, objective, ops);
+    if diagnostics.problem == 1
+        disp('MOSEK solver thinks it is infeasible')
+    end
     %% MAP
     Pi = inv(value(E)); Ki = value(G)*Pi;
     Gamma_i = inv(value(H)); Di = value(S);
