@@ -43,6 +43,10 @@ function param = param_coupled_oscillator
     %% Laplacian
     L = [l12, -l12; -l21, l21];
     L_tilde = L;
+    
+    %% Parameters for offline algorithm 1
+    U{1} = [1 0 0 0; 0 1 0 0]; U{2} = [0 0 1 0; 0 0 0 1];
+    W{1} = eye(4); W{2} = eye(4);
         
     %% put everything together
     param.Ts= Ts;
@@ -56,6 +60,10 @@ function param = param_coupled_oscillator
     param.C_2 = C_2;
     param.L_tilde = L_tilde;
     param.global_sysd = sys_d;
+    param.U = U;
+    param.W = W;
+   
+    param.number_subsystem = 2;
     param.name = "COUPLED_OSCI";
     
   
