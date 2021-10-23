@@ -80,5 +80,7 @@ elseif param.name == "2_DGU"
  [P, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, "COUPLED_OSCI");
 
 
+ % send to online controller
+ [X,U] = mpc_online([0.2;0.5; 0.1;0.2], Q_Ni, Ri, P, Gamma_Ni);
 
  
