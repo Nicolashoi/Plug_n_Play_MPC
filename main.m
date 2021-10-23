@@ -16,15 +16,15 @@ Ad = param.global_sysd.A; Bd = param.global_sysd.B;
 Cd = param.global_sysd.C;
 
 % Compute a passive controller for each subsystem
-[K1, D1, P1, Gamma_1] = controller_passivity(param.A_1, param.B_1,...
-                                             param.C_1, param.F_1, ...
+[K1, D1, P1, Gamma_1] = controller_passivity(param.Ai{1}, param.Bi{1},...
+                                             param.Ci{1}, param.Fi{1}, ...
                                              param.L_tilde, Cd);
-[K2,D2, P2, Gamma_2] = controller_passivity(param.A_2, param.B_2,...
-                                            param.C_2, param.F_2, ...
+[K2,D2, P2, Gamma_2] = controller_passivity(param.Ai{2}, param.Bi{2},...
+                                            param.Ci{2}, param.Fi{2}, ...
                                             param.L_tilde,Cd);
 % Controlled subsystems
-sys1d = ss(param.A_1+param.B_1*K1, param.F_1, param.C_1, D1, -1);
-sys2d = ss(param.A_2+param.B_2*K2, param.F_2, param.C_2, D2, -1);
+sys1d = ss(param.Ai{1}+param.Bi{1}*K1, param.Fi{1}, param.Ci{1}, D1, -1);
+sys2d = ss(param.Ai{2}+param.Bi{2}*K2, param.Fi{2}, param.Ci{2}, D2, -1);
 disp("Is subsystem 1 passive ?"); disp(isPassive(sys1d));
 disp("Is subsystem 2 passive ?"); disp(isPassive(sys2d));  
 
@@ -75,7 +75,7 @@ elseif param.name == "2_DGU"
  for i = 1:param.number_subsystem
      m_Ni = size(param.W{i},1);
      Q_Ni{i} =100*eye(m_Ni);
-     Ri{i} = 1*eye(size(param.B_1,2));
+     Ri{i} = 1*eye(size(param.Bi{i},2));
  end
  [P, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, "COUPLED_OSCI");
 
