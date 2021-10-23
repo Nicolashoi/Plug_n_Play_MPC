@@ -47,6 +47,12 @@ function param = param_coupled_oscillator
     %% Parameters for offline algorithm 1
     U{1} = [1 0 0 0; 0 1 0 0]; U{2} = [0 0 1 0; 0 0 0 1];
     W{1} = eye(4); W{2} = eye(4);
+    
+    % constraints
+    Gx{1}= [1,0; -1,0]; Gx{2} = Gx{1};
+    fx{1} = [1;1]; fx{2} = fx{1};
+    Gu{1} = [1;-1]; Gu{2} = Gu{1};
+    fu{1} = [1;1]; fu{2} = fu{1};
         
     %% put everything together
     param.Ts= Ts;
@@ -62,7 +68,11 @@ function param = param_coupled_oscillator
     param.global_sysd = sys_d;
     param.U = U;
     param.W = W;
-   
+    param.Gx = Gx;
+    param.Gu = Gu;
+    param.fx = fx;
+    param.fu = fu;
+    param.size_subsystem = 2;
     param.number_subsystem = 2;
     param.name = "COUPLED_OSCI";
     

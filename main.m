@@ -69,19 +69,15 @@ elseif param.name == "2_DGU"
  end   
  
  
- %% Test 2 distributed connected DGU's
- param = param_2_DGU;
- [K1, D1, P1, Gamma_1] = controller_passivity(param.A_1, param.B_1,...
-                                             param.C_1, param.F_1, ...
-                                             param.U, param.W);
- [K2,D2, P2, Gamma_2] = controller_passivity(param.A_2, param.B_2,...
-                                            param.C_2, param.F_2, ...
-                                            param.U, param.W);
-% Construct subsystems
-sys1d = ss(param.A_1+param.B_1*K1, param.F_1, param.C_1, D1, -1);
-sys2d = ss(param.A_2+param.B_2*K2, param.F_2, param.C_2, D2, -1);
-disp("Is subsystem 1 passive ?"); disp(isPassive(sys1d));
-disp("Is subsystem 2 passive ?"); disp(isPassive(sys2d));  
+ %% Test 2; Offline Distributed synthesis coupled oscillator
+ param = param_coupled_oscillator;
+ Q_Ni = {}; Ri = {};
+ for i = 1:param.number_subsystem
+     m_Ni = size(param.W{i},1);
+     Q_Ni{i} =100*eye(m_Ni);
+     Ri{i} = 1*eye(size(param.B_1,2));
+ end
+ [P, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, "COUPLED_OSCI");
 
 
 
