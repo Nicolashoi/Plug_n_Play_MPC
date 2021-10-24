@@ -29,7 +29,7 @@ for i = M:-1:1 %descending order so that Matlab allocates the necesssary free sp
     E{i} = sdpvar(mi,mi);
     H_N{i} = sdpvar(m_Ni, m_Ni, 'full');
     Y_N{i} = sdpvar(pi, m_Ni, 'full');
-    constraints = [constraints,E{i} >= epsilon*eye(size(E{i})), E_N{i} >= epsilon*eye(size(E_N{i}))] 
+    constraints = [constraints,E{i} >= epsilon*eye(size(E{i})), E_N{i} >= epsilon*eye(size(E_N{i}))] ;
     LMI_1 = [Ebar{i} + H_N{i}, E_N{i}*A_Ni{i}'+Y_N{i}'*param.Bi{i}', E_N{i}*Q_Ni{i}^(1/2),...
            Y_N{i}'*Ri{i}^(1/2); A_Ni{i}*E_N{i}+ param.Bi{i}*Y_N{i}, E{i}, zeros(mi,m_Ni), zeros(mi,pi);...
            (Q_Ni{i}^1/2)*E_N{i},zeros(m_Ni,mi), eye(m_Ni), zeros(m_Ni, pi);...
@@ -50,7 +50,7 @@ diagnostics = optimize(constraints, objective, ops);
 if diagnostics.problem == 1
     error('MOSEK solver thinks algorithm 1 is infeasible')
 end
-P = cell(mi,mi,M); % M subsystem, so M different Pi
+P = cell(M); % M subsystem, so M different Pi
 for i = M:-1:1
     P{i} = inv(value(E{i}));
     P_N{i} = inv(value(E_N{i}));

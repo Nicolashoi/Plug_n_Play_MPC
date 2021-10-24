@@ -70,6 +70,7 @@ elseif param.name == "2_DGU"
  
  
  %% Test 2; Offline Distributed synthesis coupled oscillator
+ clear
  param = param_coupled_oscillator;
  Q_Ni = {}; Ri = {};
  for i = 1:param.number_subsystem
@@ -78,9 +79,39 @@ elseif param.name == "2_DGU"
      Ri{i} = 1*eye(size(param.Bi{i},2));
  end
  [P, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, "COUPLED_OSCI");
-
+alpha = zeros(param.number_subsystem,1);
+ for i=1:param.number_subsystem
+    alpha(i) = alpha_i; % same alpha for every subsystem in the beginning
+end
 
  % send to online controller
- [X,U] = mpc_online([0.2;0.5; 0.1;0.2], Q_Ni, Ri, P, Gamma_Ni);
+[X,U] = mpc_online([0.2;0.5; 0.1;0.2],alpha, Q_Ni, Ri, P, Gamma_Ni);
+states = cell2mat(X');
+controller = cell2mat(U');
+figure(1)
+subplot(2,1,1)
+title('Positions');
+hold on
+plot(states(1,:), 'r+');
+plot(states(3,:), 'b*');
+legend("mass 1", "mass 2");
+grid on
+hold off
+subplot(2,1,2)
+title('velocities');
+hold on
+plot(states(2,:), 'r+');
+plot(states(4,:), 'b*');
+legend("mass 1", "mass 2");
+grid on
+hold off
 
+figure(2)
+title("Controller")
+hold on
+plot(controller(1,:), 'r+');
+plot(controller(2,:), 'b*');
+legend("U1", "U2");
+grid on
+hold off
  
