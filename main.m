@@ -62,8 +62,8 @@ elseif param.name == "2_DGU"
     sysd_lqr = ss(Ad - Bd * Klqr,[],Cd, [],param.Ts);
 
     t = 0:param.Ts:10;
-    u = [-param.Vr1/param.Vin_1+ K1*[-param.Vr1 0 0]'; ...
-         -param.Vr2/param.Vin_2+ K2*[-param.Vr2 0 0]'];
+    u = [-param.Vr1/param.Vin_1+ K1*[-param.Vr1 0 -param.Vr1]'; ...
+         -param.Vr2/param.Vin_2+ K2*[-param.Vr2 0 -param.Vr2]'];
     u = repmat(u,1,size(t,2))' ;
     lsim(sysd_pass,u,t) % u matrix with dimensions Nt by Nu
  end   
@@ -85,23 +85,23 @@ alpha = zeros(param.number_subsystem,1);
 end
 
  % send to online controller
-[X,U] = mpc_online([0.2;0.5; 0.1;0.2],alpha, Q_Ni, Ri, P, Gamma_Ni);
+[X,U] = mpc_online([0.3;0.5; 0.2;0.2],alpha, Q_Ni, Ri, P, Gamma_Ni);
 states = cell2mat(X');
 controller = cell2mat(U');
 figure(1)
 subplot(2,1,1)
 title('Positions');
 hold on
-plot(states(1,:), 'r+');
-plot(states(3,:), 'b*');
+plot(states(1,:), 'r-+');
+plot(states(3,:), 'b-*');
 legend("mass 1", "mass 2");
 grid on
 hold off
 subplot(2,1,2)
 title('velocities');
 hold on
-plot(states(2,:), 'r+');
-plot(states(4,:), 'b*');
+plot(states(2,:), 'r-+');
+plot(states(4,:), 'b-*');
 legend("mass 1", "mass 2");
 grid on
 hold off
@@ -109,8 +109,8 @@ hold off
 figure(2)
 title("Controller")
 hold on
-plot(controller(1,:), 'r+');
-plot(controller(2,:), 'b*');
+plot(controller(1,:), 'r-+');
+plot(controller(2,:), 'b-*');
 legend("U1", "U2");
 grid on
 hold off
