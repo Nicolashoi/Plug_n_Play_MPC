@@ -13,7 +13,7 @@ function param = param_coupled_oscillator
     %% Constant parameters
     m1 = 1; m2 = m1; % mass 
     ka = 2; kb = 1.5; % spring constants
-    l12 = 1; l21 = l12; % laplacian terms
+    a12 = 1; a21 = a12; % laplacian terms
     nb_subsystems = 2;   
     Ts = 10e-2; % Discretization
     %% System dynamics
@@ -38,9 +38,11 @@ function param = param_coupled_oscillator
     C = blkdiag(Cc{1}, Cc{2});
     sys = ss(A,B,C,[]);
     sys_d = c2d(sys, Ts); % Exact discretization of the global system
-    
+    A_Ni{1} = sys_d.A(1:2,:);
+    A_Ni{2} = sys_d.A(3:4,:);
     %% Laplacian
-    L = [l12, -l12; -l21, l21];
+    Agraph = [0, a12; a21, 0]; % graph matrix
+    L = [a12, -a12; -a21, a21];
     L_tilde = L;
     
     %% Parameters for offline algorithm 1
@@ -58,6 +60,8 @@ function param = param_coupled_oscillator
     fx = [fx_i{1}; fx_i{2}];
     Gu = blkdiag(Gu_i{1}, Gu_i{2});
     fu = [fu_i{1}; fu_i{2}];
+    
+    graph = digraph([1 2], [2 1]);
     %% put everything together
     param.Ts= Ts;
     param.Ai = Ai;
@@ -77,9 +81,12 @@ function param = param_coupled_oscillator
     param.fx = fx;
     param.fu = fu;
     param.Z = Z;
+    param.Agraph = Agraph;
     param.size_subsystem = 2;
     param.number_subsystem = nb_subsystems;
     param.name = "COUPLED_OSCI";
+    param.A_Ni = A_Ni;
+    param.graph = graph;
     
   
 end

@@ -85,23 +85,28 @@ alpha = zeros(param.number_subsystem,1);
 end
 
  % send to online controller
-[X,U] = mpc_online([0.3;0.5; 0.2;0.2],alpha, Q_Ni, Ri, P, Gamma_Ni);
-states = cell2mat(X');
-controller = cell2mat(U');
+ x0 = [0.4 0.8; 0.2 0.1]; % columns are subsystem i
+[X,U] = mpc_online(x0,alpha, Q_Ni, Ri, P, Gamma_Ni);
+states = cell2mat(X);
+position{1} = states(1:2:end,1);
+position{2} = states(1:2:end,2);
+velocity{1} = states(2:2:end,1);
+velocity{2} = states(2:2:end,2);
+controller = cell2mat(U);
 figure(1)
 subplot(2,1,1)
 title('Positions');
 hold on
-plot(states(1,:), 'r-+');
-plot(states(3,:), 'b-*');
+plot(position{1}, 'r-+');
+plot(position{2}, 'b-*');
 legend("mass 1", "mass 2");
 grid on
 hold off
 subplot(2,1,2)
 title('velocities');
 hold on
-plot(states(2,:), 'r-+');
-plot(states(4,:), 'b-*');
+plot(velocity{1}, 'r-+');
+plot(velocity{2}, 'b-*');
 legend("mass 1", "mass 2");
 grid on
 hold off
@@ -109,8 +114,8 @@ hold off
 figure(2)
 title("Controller")
 hold on
-plot(controller(1,:), 'r-+');
-plot(controller(2,:), 'b-*');
+plot(controller(:,1), 'r-+');
+plot(controller(:,2), 'b-*');
 legend("U1", "U2");
 grid on
 hold off

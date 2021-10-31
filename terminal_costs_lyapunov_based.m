@@ -8,17 +8,16 @@ function [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, sy
     end
     mi = param.size_subsystem;
     M = param.number_subsystem;
-    %% decision variables
     global Ei E H_Ni Y_Ni E_Ni Ebar
+    %% decision variables
     Ei = sdpvar(repmat(mi,1,M),repmat(mi,1,M)); % cell array of dimension M, 
     % each cell array is mi x mi 
-    E = blkdiag(Ei{:}); 
     H_Ni = cell(1,M); Y_Ni = cell(1,M);
     
     %% dependent variables
     E_Ni = cell(1,M);
     Ebar = cell(1,M);
-    
+    E = blkdiag(Ei{:}); 
     constraints = define_constraints(Q_Ni, Ri, param, mi,M);
     %% OPTIMIZER
     ops = sdpsettings('solver', 'MOSEK', 'verbose',0);

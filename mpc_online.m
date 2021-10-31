@@ -4,70 +4,85 @@
 % BRIEF:
 
 function [X,U] = mpc_online(x0, alpha, Q_Ni, Ri, Pi, Gamma_Ni)
-param = param_coupled_oscillator;
-length_sim = 30;
-M = param.number_subsystem;
-x = x0;
-% X = cell(size(param.global_sysd.A,1),1,length_sim+1);
-% U = cell(size(param.global_sysd.B,2),1,length_sim);
-X = cell(length_sim+1,1);
-U = cell(length_sim,1);
-X{1} = x0;
+    param = param_coupled_oscillator;
+    length_sim = 30;
+    M = param.number_subsystem;
+    % X = cell(size(param.global_sysd.A,1),1,length_sim+1);
+    % U = cell(size(param.global_sysd.B,2),1,length_sim);
+    X = cell(length_sim+1,1);
+    U = cell(length_sim,1);
+    X{1} = x0;
     for n = 1:length_sim
-        [u0, x_Ni] = get_input(x, alpha, Q_Ni, Ri, Pi);
-        x = param.global_sysd.A *x + param.global_sysd.B*u0;
-        X{n+1} = x; U{n} = u0;
-        for i=M:-1:1
-            alpha(i) = alpha(i) + x_Ni{i}'*Gamma_Ni{i}*x_Ni{i}; %apply the x_Ni we get from system equations after applying x0
+        u0 = get_input(x0, alpha, Q_Ni, Ri, Pi);
+        U{n} = u0;
+        for i=1:M
+            neighbors = [i, successors(param.graph, i)];
+            neighbors = sort(neighbors);
+            %x_Ni = X{n}(:,i);
+            x_Ni = [];
+            for j = 1:length(neighbors) % PROBLEM FOR ORDER OF NEIGHBORS HAS TO BE SAME AS STATE SPACE
+                x_Ni = [x_Ni; X{n}(:,neighbors(j))];   % create vector of neighbor states
+            end 
+            X{n+1}(:, i) = param.A_Ni{i}*x_Ni + param.Bi{i}*u0(:,i);
+            alpha(i) = alpha(i) + x_Ni'*Gamma_Ni{i}*x_Ni;
+            x0(:,i) = X{n+1}(:, i);
         end
     end
 end
 
-function [U0,x_Ni]  = get_input(x0, alpha, Q_Ni, Ri, Pi)
+function u0 = get_input(x0, alpha, Q_Ni, Ri, Pi)
 
     param = param_coupled_oscillator;
     N = 5;
     M = param.number_subsystem;
-    A = param.global_sysd.A; B = param.global_sysd.B;
     % create variables for optimizer
-    nx = size(A,1);
-    nu = size(B,2); 
+    nx = size(param.Ai{1},1);
+    nu = size(param.Bi{1},2); 
     objective = 0;
     constraints = [];
-    u = sdpvar(repmat(nu,1,N-1),ones(1,N-1),'full');
-    X = sdpvar(repmat(nx,1,N),ones(1,N),'full'); % arrays of nx*1 repeated N times
-    X0 = sdpvar(nx,1,'full');
+    % Input cell array of size N-1, each cell is an array of size nu*M
+    U = sdpvar(repmat(nu,1,N-1), repmat(M,1,N-1),'full');
+    % State cell array of size N (timestep), each cell is an array of size nx*M
+    X = sdpvar(repmat(nx,1,N),repmat(M,1,N),'full');
+    X0 = sdpvar(nx,M,'full'); % state as rows and system number as column
     alpha_var = sdpvar(M,1,'full');
     % CONSTRAINTS FOR EACH TIME STEP, GLOBAL CENTRALIZED SYSTEM
-    for k = 1:N-1
-        % system dynamics constraints #CHANGE TO DISTRIBUTED SYSTEM A_i,
-        % X_i
-        constraints = [constraints, X{k+1} == A*X{k} + B*u{k}];
-        % state constraints
-        constraints = [constraints, param.Gx * X{k+1} <= param.fx];
-        % input constraints
-        constraints = [constraints, param.Gu * u{k} <= param.fu];
-    end
-    % FOR EACH SUBSYSTEM
-    for i = 1:M
-        % sum of local functions l(xi,uf)
-        objective = objective + (param.W{i}*X{N})'*Q_Ni{i}*(param.W{i}*X{N})...
-                        + (param.Z{i}*u{N-1})'*Ri{i}*(param.Z{i}*u{N-1}); % uf = Z{i}*U{i}
-        % sum of Vf
-        objective = objective + (param.U{i}*X{N})'*Pi{i}*(param.U{i}*X{N}); 
-        constraints = [constraints, (param.U{i}*X{N})'*Pi{i}*(param.U{i}*X{N})...
+    for i=1:M % FOR EACH SUBSYSTEM
+        x_Ni = cell(1,N);
+        neighbors = [i,successors(param.graph, i)];
+        %neighbors = sort(neighbors); % Sorting here is causing troubles
+        for k = 1:N-1 % Planning Horizon
+            
+            for j = 1:length(neighbors)
+                x_Ni{k} = [x_Ni{k}; X{k}(:,neighbors(j))];   % create vector of neighbor states
+            end
+            constraints = [constraints, X{k+1}(:,i) == param.A_Ni{i}*x_Ni{k}+...
+                                                       param.Bi{i}*U{k}(:,i)];
+     
+            % state constraints
+            constraints = [constraints, param.Gx_i{i} * X{k+1}(:,i)...
+                                        <= param.fx_i{i}];
+            % input constraints
+            constraints = [constraints, param.Gu_i{i} * U{k}(:,i)...
+                                        <= param.fu_i{i}];
+            % sum of local functions l(xi,uf) %
+            objective = objective + x_Ni{k}'*Q_Ni{i}*x_Ni{k} + U{k}(:,i)'*Ri{i}*...   
+                                    U{k}(:,i);
+        end
+        % Terminal cost
+        objective = objective + X{end}(:,i)'*Pi{i}*X{end}(:,i);
+        constraints = [constraints, X{end}(:,i)'*Pi{i}*X{end}(:,i)...
                                     <= alpha_var(i)];
+                                   
     end
     % parameter for initial condition
     constraints = [constraints, X{1} == X0];
     ops = sdpsettings('verbose',1); %options
     parameters_in = {X0, alpha_var};
-    solutions_out = {[u{:}], [X{:}]};
+    solutions_out = {[U{1}], [X{:}]}; % general form 
     MPC_optimizer = optimizer(constraints,objective,ops,parameters_in,solutions_out);
+    % get U0 for each subsystem
     solutions = MPC_optimizer({x0, alpha});
-    U0 = solutions{1}(:,1);
-    XN = solutions{2}(:,4);
-    for i = M:-1:1
-        x_Ni{i} = param.W{i}*XN; % DON?T DO THAT HERE, but in the other function and get x1 not XN
-    end
+    u0 = solutions{1}; % size nu x M, columns are for each subsystem
+    
 end
