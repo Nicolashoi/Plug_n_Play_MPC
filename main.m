@@ -82,10 +82,10 @@ elseif param.name == "2_DGU"
 alpha = zeros(param.number_subsystem,1);
  for i=1:param.number_subsystem
     alpha(i) = alpha_i; % same alpha for every subsystem in the beginning
-end
+ end
 
  % send to online controller
- x0 = [0.4 0.8; 0.2 0.1]; % columns are subsystem i
+ x0 = [0.3 -0.4; 0.2 -0.1]; % columns are subsystem i
 [X,U] = mpc_online(x0,alpha, Q_Ni, Ri, P, Gamma_Ni);
 states = cell2mat(X);
 position{1} = states(1:2:end,1);
