@@ -59,7 +59,7 @@ function param = param_coupled_oscillator
     Gu = blkdiag(Gu_i{1}, Gu_i{2});
     fu = [fu_i{1}; fu_i{2}];
     
-    graph = digraph([1 2], [2 1]);
+    graph = digraph([1 2], [2 1]); % or digraph(Agraph)
     %% put everything together
     param.Ts= Ts;
     param.Ai = Ai;
