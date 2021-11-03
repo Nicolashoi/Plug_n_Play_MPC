@@ -3,29 +3,29 @@
 %   Nicolas Hoischen
 % BRIEF:
 
-function [X,U] = mpc_online(x0, alpha, Q_Ni, Ri, Pi, Gamma_Ni)
+function [X,U] = mpc_online(x0, alpha, Q_Ni, Ri, Pi, Gamma_Ni, length_sim)
     param = param_coupled_oscillator;
-    length_sim = 50;
-    M = param.number_subsystem;
-    % X = cell(size(param.global_sysd.A,1),1,length_sim+1);
-    % U = cell(size(param.global_sysd.B,2),1,length_sim);
-    X = cell(length_sim+1,1);
-    U = cell(length_sim,1);
-    X{1} = x0;
-    for n = 1:length_sim
-        u0 = get_input(x0, alpha, Q_Ni, Ri, Pi);
-        U{n} = u0;
+    M = param.number_subsystem; % number of subsystems
+    X = cell(length_sim+1,1); % state at each timestep
+    U = cell(length_sim,1); % control input at each timestep
+    X{1} = x0; % initial state
+    
+    for n = 1:length_sim % loop over all subsystem
+        % control input is of size nu x M
+        U{n} = get_input(X{n}, alpha, Q_Ni, Ri, Pi); % get first control input
+        
         for i=1:M
-            neighbors = [i, successors(param.graph, i)];
-            neighbors = sort(neighbors);
-            %x_Ni = X{n}(:,i);
-            x_Ni = [];
-            for j = 1:length(neighbors) % PROBLEM FOR ORDER OF NEIGHBORS HAS TO BE SAME AS STATE SPACE
-                x_Ni = [x_Ni; X{n}(:,neighbors(j))];   % create vector of neighbor states
-            end 
-            X{n+1}(:, i) = param.A_Ni{i}*x_Ni + param.Bi{i}*u0(:,i);
+            neighbors = [i, successors(param.graph, i)]; % get neighbors
+            neighbors = sort(neighbors); % sorted neighbor list
+            % create neighbor state vector comprising the state of subsystem i
+            % and the state of it's neighbors (concatenated)
+            x_Ni = reshape(X{n}(:,neighbors),[],1); 
+            
+            % Apply first input to the system and get next state
+            X{n+1}(:, i) = param.A_Ni{i}*x_Ni + param.Bi{i}*U{n}(:,i);
+            
+            % update variable constraining terminal set of each subsystem
             alpha(i) = alpha(i) + x_Ni'*Gamma_Ni{i}*x_Ni;
-            x0(:,i) = X{n+1}(:, i);
         end
     end
 end
@@ -33,7 +33,7 @@ end
 function u0 = get_input(x0, alpha, Q_Ni, Ri, Pi)
 
     param = param_coupled_oscillator;
-    N = 5;
+    N = 8;
     M = param.number_subsystem;
     % create variables for optimizer
     nx = size(param.Ai{1},1);
@@ -44,27 +44,24 @@ function u0 = get_input(x0, alpha, Q_Ni, Ri, Pi)
     U = sdpvar(repmat(nu,1,N-1), repmat(M,1,N-1),'full');
     % State cell array of size N (timestep), each cell is an array of size nx*M
     X = sdpvar(repmat(nx,1,N),repmat(M,1,N),'full');
-    X_Ni = cell(M,N-1);
+    X_Ni = cell(M,N-1); % cell array for neighbor states
     X0 = sdpvar(nx,M,'full'); % state as rows and system number as column
     alpha_var = sdpvar(M,1,'full');
-    % CONSTRAINTS FOR EACH TIME STEP, GLOBAL CENTRALIZED SYSTEM
-    for i=1:M % FOR EACH SUBSYSTEM
-        m_Ni = size(param.A_Ni{i},2);
+  
+    for i=1:M % loop over all subsystems
+        m_Ni = size(param.A_Ni{i},2); % get size of set of Neighbors
+        % obtain sorted list of neighbors of system i
         neighbors = [i,successors(param.graph, i)];
         neighbors = sort(neighbors);
-        %neighbors = sort(neighbors); % Sorting here is causing troubles
-        for k = 1:N-1 % Planning Horizon
-            X_Ni{i,k} = sdpvar(m_Ni,1,'full');
-            %constraints = [constraints, param.Z{i}*X_Ni{i,k} == X{k}(:,i)]; 
-            xNi = [];
-            for j=1:length(neighbors)
-              xNi =  [xNi; X{k}(:,neighbors(j))];
-            end
-            constraints = [constraints, X_Ni{i,k} == xNi];
-             % x_Ni{k} = [X{k}(:,1); X{k}(:,2)];
-%             for j = 1:length(neighbors)
-%                 x_Ni{k} = [x_Ni{k}; X{k}(:,neighbors(j))];   % create vector of neighbor states
-%             end
+       
+        for k = 1:N-1 % Planning Horizon Loop
+            X_Ni{i,k} = sdpvar(m_Ni,1,'full'); % neighbor state i
+            
+            % add a constraint for the neighbor state i to be equal to the
+            % concatenated subsystem neighbor state vectors
+            constraints = [constraints, X_Ni{i,k} == ...
+                                        reshape(X{k}(:,neighbors),[],1)];
+            % Distributed Dynamics
             constraints = [constraints, X{k+1}(:,i) == param.A_Ni{i}*X_Ni{i,k}+...
                                                        param.Bi{i}*U{k}(:,i)];
      
@@ -84,10 +81,7 @@ function u0 = get_input(x0, alpha, Q_Ni, Ri, Pi)
                                     <= alpha_var(i)];
                                    
     end
-%     constraints = [constraints, X_Ni{1,1}(1:2) == X{1}(:,1),X_Ni{1,1}(3:4) == X{1}(:,2),...
-%                                 X_Ni{1,2}(1:2) == X{1}(:,1), X_Ni{1,2}(3:4) == X{1}(:,2),...
-%                                 X_Ni{2,1}(1:2) == X{2}(:,1),X_Ni{2,1}(3:4) == X{2}(:,2),...
-%                                 X_Ni{2,2}(1:2) == X{2}(:,1), X_Ni{2,2}(3:4) == X{2}(:,2)];                    
+              
     % parameter for initial condition
     constraints = [constraints, X{1} == X0];
     ops = sdpsettings('verbose',1); %options
