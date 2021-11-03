@@ -87,7 +87,7 @@ alpha = zeros(param.number_subsystem,1);
  % send to online controller
  x0 = [0.3 -0.4; 0.2 -0.1]; % columns are subsystem i
  length_sim = 50;
-[X,U] = mpc_online(x0,alpha, Q_Ni, Ri, P, Gamma_Ni,length_sim);
+[X,U] = simulate_system(@mpc_online, x0,alpha, Q_Ni, Ri, P, Gamma_Ni,length_sim);
 states = cell2mat(X);
 position{1} = states(1:2:end,1);
 position{2} = states(1:2:end,2);

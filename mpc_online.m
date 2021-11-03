@@ -1,39 +1,17 @@
 %% Algorithm 2: Online Distributed MPC
 % Author:
 %   Nicolas Hoischen
-% BRIEF: % Online mpc controller function. Executed at every subsystem. Update
-% of each subsystem terminal state constraint (alpha_i) through the horizon.
+% BRIEF: % Online mpc controller function. Executed at every subsystem. 
 % Following Algorithm 2 of "Distributed Synthesis and Control of Constrained
 % Linear Systems"
 
-function [X,U] = mpc_online(x0, alpha, Q_Ni, Ri, Pi, Gamma_Ni, length_sim)
+function u0 = mpc_online(x0, alpha, Q_Ni, Ri, Pi, N)
     persistent param mpc_optimizer
-    N = 10; % Horizon length
     % initialize controller, if not done already
     if isempty(param)
         [param, mpc_optimizer] = init_optimizer(Q_Ni, Ri, Pi, N);
     end
-    M = param.number_subsystem; % number of subsystems
-    X = cell(length_sim+1,1); % state at each timestep
-    U = cell(length_sim,1); % control input at each timestep
-    X{1} = x0; % initial state
-    
-    for n = 1:length_sim % loop over all subsystem
-        % control input is of size nu x M
-        U{n} = mpc_optimizer(X{n}, alpha); % get first control input
-        
-        for i=1:M
-            neighbors = [i, successors(param.graph, i)]; % get neighbors
-            neighbors = sort(neighbors); % sorted neighbor list
-            % create neighbor state vector comprising the state of subsystem i
-            % and the state of it's neighbors (concatenated)
-            x_Ni = reshape(X{n}(:,neighbors),[],1); 
-            % Apply first input to the system and get next state
-            X{n+1}(:, i) = param.A_Ni{i}*x_Ni + param.Bi{i}*U{n}(:,i);
-            % update variable constraining terminal set of each subsystem
-            alpha(i) = alpha(i) + x_Ni'*Gamma_Ni{i}*x_Ni;
-        end
-    end
+    u0 = mpc_optimizer(x0, alpha);
 end
  
 function [param, mpc_optimizer] = init_optimizer(Q_Ni, Ri, Pi, N)

@@ -49,8 +49,6 @@ function param = param_coupled_oscillator
     U{1} = [1 0 0 0; 0 1 0 0]; U{2} = [0 0 1 0; 0 0 0 1];
     W{1} = eye(4); W{2} = eye(4);
     
-    % Parameters for online algorithm 2
-    Z{1} = [1 0 0 0; 0 1 0 0]; Z{2} = [0 0 1 0; 0 0 0 1];
     % constraints
     Gx_i{1}= [1,0; -1,0]; Gx_i{2} = Gx_i{1};
     fx_i{1} = [1;1]; fx_i{2} = fx_i{1};
@@ -80,7 +78,6 @@ function param = param_coupled_oscillator
     param.Gu = Gu;
     param.fx = fx;
     param.fu = fu;
-    param.Z = Z;
     param.Agraph = Agraph;
     param.size_subsystem = 2;
     param.number_subsystem = nb_subsystems;
