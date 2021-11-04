@@ -78,7 +78,7 @@ elseif param.name == "2_DGU"
      Q_Ni{i} =100*eye(m_Ni);
      Ri{i} = 1*eye(size(param.Bi{i},2));
  end
- [P, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, "COUPLED_OSCI");
+ [P, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, "COUPLED_OSCI", true);
 alpha = zeros(param.number_subsystem,1);
  for i=1:param.number_subsystem
     alpha(i) = alpha_i; % same alpha for every subsystem in the beginning
