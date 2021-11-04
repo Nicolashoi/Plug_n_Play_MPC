@@ -3,6 +3,7 @@
 function A_Ni = change_system_representation(Ai,Fi,Ci,Agraph)
 M = size(Ai,2); % number of subsystems    
 G = digraph(Agraph);
+A_Ni = cell(1,M);
 for i=1:M
     out_neighbors = sort([i,successors(G, i)]);
     Acell = cell(1,length(out_neighbors));

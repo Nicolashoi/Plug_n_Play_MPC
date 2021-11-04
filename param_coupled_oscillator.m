@@ -31,6 +31,7 @@ function param = param_coupled_oscillator
         Fi{i} = sys_d{i}.B(:,2);
         Ci{i} = Cc{i};
     end
+    
      %% Non-distributed system
     A = [0, 1, 0, 0; -(ka+kb)/m1, 0, kb, 0; 0, 0, 0, 1; kb,...
          0, -(ka+kb)/m2, 0];
@@ -38,13 +39,13 @@ function param = param_coupled_oscillator
     C = blkdiag(Cc{1}, Cc{2});
     sys = ss(A,B,C,[]);
     sys_d = c2d(sys, Ts); % Exact discretization of the global system
-    A_Ni{1} = sys_d.A(1:2,:);
-    A_Ni{2} = sys_d.A(3:4,:);
+%     A_Ni{1} = sys_d.A(1:2,:);
+%     A_Ni{2} = sys_d.A(3:4,:);
     %% Laplacian
     Agraph = [0, a12; a21, 0]; % graph matrix
     L = [a12, -a12; -a21, a21];
     L_tilde = L;
-    
+    A_Ni = change_system_representation(Ai,Fi,Ci,Agraph);
     %% Parameters for offline algorithm 1
     U{1} = [1 0 0 0; 0 1 0 0]; U{2} = [0 0 1 0; 0 0 0 1];
     W{1} = eye(4); W{2} = eye(4);

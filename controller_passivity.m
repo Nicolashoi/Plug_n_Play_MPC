@@ -20,32 +20,30 @@ function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, L_tilde,...
     %% Interconnection Variables
     U = L_tilde*C_global;
     W = C_global'*L_tilde;
-
     ni = size(A,1);
     mi = size(B,2);
     constraints = [];
-    objective = 0;%trace(H);
-    
+     
     %% Decision Variables
     E = sdpvar(ni, ni); %symmetric P.D
     H = diag(sdpvar(ni,1)); % diagonal matrix as defined in Th.1
     G = sdpvar(mi,ni, 'full');
     S = diag(sdpvar(mi,1)); % diagonal matrix as defined in Th.1
-   
+    objective = -trace(H); % yalmip always assumes minimization so (-) to max
     %% Equation 7
     LMI = [E, 1/2*E*C', (A*E + B*G)', E;...
            1/2*C*E, 1/2*S + 1/2*S', F', zeros(size(F',1),size(E,2));...
            (A*E+B*G), F, E, zeros(size(F,1), size(E,2));...
            E, zeros(size(E,1), size(F,2)), zeros(size(E)), H];
     % add to constraints   
-    constraints = [constraints, LMI >= 0]; %0-1e-2*eye(size(LMI,1))]; 
+    constraints = [constraints, LMI >= 0]; 
 
     %% Theorem 1
     %epsilon_i = sdpvar(1); %define value
-    epsilon_i = 1e-5;
+    epsilon_i = 1e-3;
     constraints = [constraints, E >= epsilon_i*eye(ni), ...
                    H >= epsilon_i*eye(ni), S >= epsilon_i*eye(mi)];
-    epsilon_0 = 1e-5;
+    epsilon_0 = 1e-3;
     for j=1:size(H,1)
         constraints = [constraints, H(j,j) <= 1/(norm(W(j,:),1)+ epsilon_0)];
     end
