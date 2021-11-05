@@ -6,12 +6,13 @@
 % Following Algorithm 2 of "Distributed Synthesis and Control of Constrained
 % Linear Systems"
 
-function [X,U] = simulate_system(controller, x0, length_sim, simulation, param,...
-                                 alpha, Q_Ni, Ri, Pi, Gamma_Ni)
+function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, param,...
+                                  Q, R, Pi, Gamma_Ni, alpha)
+    Pinf = [];
     switch simulation
         case "MPC"
             [X,U] = mpc_simulation(controller, x0, length_sim, param,...
-                                          alpha, Q_Ni, Ri, Pi, Gamma_Ni);
+                                          alpha, Q, R, Pi, Gamma_Ni);
         case "Passivity" % passivity only
             M = param.number_subsystem;
             Kpass = cell(1,M); D = cell(1,M); Ppass = cell(1,M); 
@@ -22,7 +23,16 @@ function [X,U] = simulate_system(controller, x0, length_sim, simulation, param,.
                                              param.Ci{1}, param.Fi{1}, ...
                                              param.L_tilde, param.global_sysd.C);
             end
-            [X,U] = passive_controller_sim(x0, length_sim, Kpass,param);
+            Kblock = blkdiag(Kpass{:});
+            if param.name == "COUPLED_OSCI"
+                [X,U] = passive_coupled_osc(x0, length_sim, Kblock,param);
+            end
+        case "LQR"
+            Ad = param.global_sysd.A; Bd = param.global_sysd.B; 
+            [Klqr,Pinf, ~] = dlqr(Ad, Bd, Q,R);
+            if param.name == "COUPLED_OSCI"
+                [X,U] = passive_coupled_osc(x0, length_sim, -Klqr,param);
+            end
         otherwise
             error("Simulation not implemented");
        
@@ -30,19 +40,17 @@ function [X,U] = simulate_system(controller, x0, length_sim, simulation, param,.
 end
 
 
-function [X,U] = passive_controller_sim(x0, length_sim, Kpass,param)
-    Kblock = blkdiag(Kpass{:});
+function [X,U] = passive_coupled_osc(x0, length_sim, K,param)
+    
     Ad = param.global_sysd.A; Bd = param.global_sysd.B; 
     Cd = param.global_sysd.C;
-    Acl = Ad+Bd*Kblock;
-%     sysd = ss(Acl,Bd,Cd,[], -1);
-%     disp("Is global system passive ?"); disp(isPassive(sysd));
+    Acl = Ad+Bd*K;
     X = cell(length_sim+1,1); % state at each timestep
     U = cell(length_sim,1); % control input at each timestep
     X{1} = x0;
     for n=1:length_sim
         X{n+1} = Acl*X{n};
-        U{n} = Kblock*X{n};
+        U{n} = K*X{n};
     end
 end
 
