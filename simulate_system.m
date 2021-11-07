@@ -23,15 +23,16 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
                                              param.Ci{1}, param.Fi{1}, ...
                                              param.L_tilde, param.global_sysd.C);
             end
-            Kblock = blkdiag(Kpass{:});
+            %disp("Passive controller Gain"); disp(Kpass{:});
             if param.name == "COUPLED_OSCI"
-                [X,U] = passive_coupled_osc(x0, length_sim, Kblock,param);
+                [X,U] = sim_oscill_distributed(x0, length_sim, Kpass,param);
             end
         case "LQR"
             Ad = param.global_sysd.A; Bd = param.global_sysd.B; 
             [Klqr,Pinf, ~] = dlqr(Ad, Bd, Q,R);
+            disp("LQR controller Gain"); disp(-Klqr);
             if param.name == "COUPLED_OSCI"
-                [X,U] = passive_coupled_osc(x0, length_sim, -Klqr,param);
+                [X,U] = sim_coupled_osc(x0, length_sim, -Klqr,param);
             end
         otherwise
             error("Simulation not implemented");
@@ -39,11 +40,29 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
     end
 end
 
+function [X,U] = sim_oscill_distributed(x0, length_sim, K,param)
+    M = param.number_subsystem; % number of subsystems
+    X = cell(length_sim+1,1); % state at each timestep
+    U = cell(length_sim,1); % control input at each timestep
+    X{1} = x0;
+    for n=1:length_sim
+         for i=1:M
+            U{n}(:,i) = K{i}*X{n}(:,i);
+            neighbors = [i, successors(param.graph, i)]; % get neighbors
+            neighbors = sort(neighbors); % sorted neighbor list
+            % create neighbor state vector comprising the state of subsystem i
+            % and the state of it's neighbors (concatenated)
+            x_Ni = reshape(X{n}(:,neighbors),[],1); 
+            % Apply first input to the system and get next state
+            X{n+1}(:, i) = param.A_Ni{i}*x_Ni + param.Bi{i}*U{n}(:,i);
+         end
+    end  
+end
 
-function [X,U] = passive_coupled_osc(x0, length_sim, K,param)
+function [X,U] = sim_coupled_osc(x0, length_sim, K,param)
     
     Ad = param.global_sysd.A; Bd = param.global_sysd.B; 
-    Cd = param.global_sysd.C;
+    %Bd(1:2,2) = [0;0]; Bd(3:4,1) = [0;0];
     Acl = Ad+Bd*K;
     X = cell(length_sim+1,1); % state at each timestep
     U = cell(length_sim,1); % control input at each timestep
@@ -51,7 +70,7 @@ function [X,U] = passive_coupled_osc(x0, length_sim, K,param)
     for n=1:length_sim
         X{n+1} = Acl*X{n};
         U{n} = K*X{n};
-    end
+    end     
 end
 
 

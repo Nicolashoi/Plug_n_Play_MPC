@@ -9,18 +9,20 @@
 %   xa = displacement of first mass from equilibrium
 %   xb = displacement of second mass from equilibrium
 
-function param = param_coupled_oscillator
+function param = param_mass_damper
     %% Constant parameters
     m1 = 1; m2 = m1; % mass 
-    ka = 2; kb = 0.5; % spring constants
-    a12 = 1; a21 = a12; % laplacian terms
+    k1 = 2; b1 = 1; % spring and damper constants for mass 1
+    k2 = 0.5; b2 = k2; % DO NOT CHANGE THIS SINCE WE ASSUME THAT B=K
+    k3 = k1; b3 = b1;
+    a12 = k2; a21 = a12; % laplacian terms
     nb_subsystems = 2;   
-    Ts = 10e-2; % Discretization
+    Ts = 10e-3; % Discretization
     %% System dynamics
-    Ac{1} = [0, 1; -ka/m1, 0]; Bc{1} = [0;1/m1];
-    Cc{1} = [1 0]; Fc{1} = [0; kb/m1];
-    Ac{2} = [0,1; -ka/m2, 0]; Bc{2} = [0; 1/m2];
-    Cc{2} = Cc{1}; Fc{2} = [0; kb/m2];
+    Ac{1} = [0, 1; -k1/m1, -b1/m1]; Bc{1} = [0;1/m1];
+    Cc{1} = [1 1]; Fc{1} = [0; 1/m1];
+    Ac{2} = [0,1; -k3/m2, -b3/m2]; Bc{2} = [0; 1/m2];
+    Cc{2} = [1 1]; Fc{2} = [0; 1/m2];
     
     %% discretization based on laplacian intercon. to preserve structure
     for i = nb_subsystems:-1:1 % in descending order so that Matlab allocates free space
@@ -33,18 +35,18 @@ function param = param_coupled_oscillator
     end
     
      %% Non-distributed system
-    A = [0, 1, 0, 0; -(ka+kb)/m1, 0, kb/m1, 0; 0, 0, 0, 1; kb/m2,...
-         0, -(ka+kb)/m2, 0];
-    B = [0, 0; 1/m1, 0; 0, 0; 0, 1/m2];
+    A = [0, 1, 0, 0; -(k1+k2)/m1, -(b1+b2)/m1, k2/m1, b2/m1; 0, 0, 0, 1; k2/m2,...
+         b2/m2, -(k2+k3)/m2, -(b2+b3)/m2];
+    B = blkdiag(Bc{:});
+    %B = [0, 0; 1/m1, 0; 0, 0; 0, 1/m2];
     C = blkdiag(Cc{1}, Cc{2});
     sys = ss(A,B,C,[]);
     sys_d = c2d(sys, Ts); % Exact discretization of the global system
-%     A_Ni{1} = sys_d.A(1:2,:);
-%     A_Ni{2} = sys_d.A(3:4,:);
+
     %% Laplacian
     Agraph = [0, a12; a21, 0]; % graph matrix
     L = [a12, -a12; -a21, a21];
-    L_tilde = L;
+    L_tilde = kron(L, eye(size(Ci{1},1)));
     A_Ni = change_system_representation(Ai,Fi,Ci,Agraph);
     %% Parameters for offline algorithm 1
     U{1} = [1 0 0 0; 0 1 0 0]; U{2} = [0 0 1 0; 0 0 0 1];

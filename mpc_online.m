@@ -11,7 +11,8 @@ function u0 = mpc_online(x0, alpha, Q_Ni, Ri, Pi, N)
     if isempty(param)
         [param, mpc_optimizer] = init_optimizer(Q_Ni, Ri, Pi, N);
     end
-    u0 = mpc_optimizer(x0, alpha);
+    [u0, ~, ~, ~, ~, feasibility]= mpc_optimizer(x0, alpha);
+    %u0 = mpc_optimizer(x0, alpha);
 end
  
 function [param, mpc_optimizer] = init_optimizer(Q_Ni, Ri, Pi, N)
