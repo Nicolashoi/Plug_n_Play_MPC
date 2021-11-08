@@ -26,6 +26,8 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
             %disp("Passive controller Gain"); disp(Kpass{:});
             if param.name == "COUPLED_OSCI"
                 [X,U] = sim_oscill_distributed(x0, length_sim, Kpass,param);
+            elseif param.name == "2_DGU"
+                [X,U] = sim_DGU_distributed(x0, length_sim, Kpass,param);
             end
         case "LQR"
             Ad = param.global_sysd.A; Bd = param.global_sysd.B; 
@@ -73,6 +75,26 @@ function [X,U] = sim_coupled_osc(x0, length_sim, K,param)
     end     
 end
 
+function [X,U] = sim_DGU_distributed(x0, length_sim, K,param)
+    M = param.number_subsystem; % number of subsystems
+    X = cell(length_sim+1,1); % state at each timestep
+    U = cell(length_sim,1); % control input at each timestep
+    X{1} = x0;
+    for n=1:length_sim
+         for i=1:M
+            X{n}(:,i) = X{n}(:,i) + [0;0;-param.Vr{i}];
+            U{n}(:,i) = K{i}*X{n}(:,i) - param.Vr{i}/param.Vin{i} + ...
+                        K{i}*[-param.Vr{i}; 0; 0];
+            neighbors = [i, successors(param.graph, i)]; % get neighbors
+            neighbors = sort(neighbors); % sorted neighbor list
+            % create neighbor state vector comprising the state of subsystem i
+            % and the state of it's neighbors (concatenated)
+            x_Ni = reshape(X{n}(:,neighbors),[],1); 
+            % Apply first input to the system and get next state
+            X{n+1}(:, i) = param.A_Ni{i}*x_Ni + param.Bi{i}*U{n}(:,i);
+         end
+    end  
+end
 
 function [X, U]= mpc_simulation(controller, x0, length_sim, param,...
                                           alpha, Q_Ni, Ri, Pi, Gamma_Ni)

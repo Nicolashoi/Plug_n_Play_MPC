@@ -14,7 +14,7 @@ addpath 'C:\Program Files\Mosek\9.3\toolbox\R2015aom'
 % 3: DGU units not well implemented yet
 clear
 close
-system = 2;
+system = 3;
 
 %% TEST 1: PASSIVITY VS LQR CONTROLLER
 close all
@@ -28,7 +28,7 @@ length_sim = 500;
 % USING PASSIVITY (DISTRIBUTED CONTROL)
 control_type = "Passivity";
 config = "DISTRIBUTED";
-x0_1 = [0.2; 0.1]; x0_2 = [-0.2; 0.1];
+x0_1 = [0.2; 0.1; 0]; x0_2 = [-0.2; 0.1; 0];
 x0 = [x0_1 x0_2]; % columns are subsystem i
 [X,U] = simulate_system(@controller_passivity, x0,length_sim, control_type, param);
 
@@ -69,7 +69,7 @@ alpha = zeros(param.number_subsystem,1);
  end
  % send to online controller
  x0 = [0.3 -0.4; 0 -0]; % columns are subsystem i
-length_sim = 50;
+length_sim = 500;
 control_type = "MPC";
 [X,U] = simulate_system(@mpc_online, x0,length_sim, control_type, param,...
                          Q_Ni, Ri, P, Gamma_Ni, alpha);
@@ -129,6 +129,8 @@ function param = choose_system(system)
             param = param_coupled_oscillator;
         case 2
             param = param_mass_damper;
+        case 3
+            param = param_2_DGU;
         otherwise
             error("system not implemented yet")
     end

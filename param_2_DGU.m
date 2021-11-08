@@ -9,55 +9,84 @@ function param = param_2_DGU
     R1 = 0.2; L1 = 1.8e-3; Cap1 = 2.2e-3;
     R2 = 0.3; L2 = 2e-3; Cap2 = 1.9e-3;
     R12 = 0.05; 
-    Vin_1 = 48; Vin_2 = 48;
-    Vr1 = 30;
-    Vr2 = 30;
-    l11 = 0; l12 = 1/R12; l21 = l12; l22 = 0;
+    Vin{1} = 48; Vin{2} = 48;
+    Vr{1} = 30;
+    Vr{2} = 30;
+    nb_subsystems = 2; 
+    a11 = 0; a12 = 1/R12; a21 = a12; a22 = 0;
     %% Subystem dynamics
     Ts = 1e-5; % sampling time
-    A_1 = [0, 1/Cap1, 0; -1/L1, -R1/L1, 0; 1/Ts, 0, 0];
-    B_1 = [0; Vin_1/L1; 0];
-    F_1 = [1/Cap1; 0; 0];
-    C_1 = [1, 0, 0];
-    A_2 = [0, 1/Cap2, 0; -1/L2, -R2/L2, 0; 1/Ts, 0, 0];
-    B_2 = [0; Vin_2/L2; 0];
-    F_2 = [1/Cap2; 0; 0];
-    C_2 = C_1;
+    Ac{1} = [0, 1/Cap1, 0; -1/L1, -R1/L1, 0; 1/Ts, 0, 0];
+    Bc{1} = [0; Vin{1}/L1; 0];
+    Fc{1} = [1/Cap1; 0; 0];
+    Cc{1} = [1, 0, 0];
+    Ac{2} = [0, 1/Cap2, 0; -1/L2, -R2/L2, 0; 1/Ts, 0, 0];
+    Bc{2} = [0; Vin{2}/L2; 0];
+    Fc{2} = [1/Cap2; 0; 0];
+    Cc{2} = Cc{1};
     
     %% Global system dynamics
-    A = blkdiag(A_1, A_2);
+    A = blkdiag(Ac{1}, Ac{2});
     % add interconnections
-    A = A + [-l12*F_1*C_1, l12*F_1*C_2; l21*F_2*C_1,-l21*F_2*C_2]; 
-    B = blkdiag(B_1,B_2);
-    C = blkdiag(C_1,C_2);
+    A = A + [-a12*Fc{1}*Cc{1}, a12*Fc{1}*Cc{2}; a21*Fc{2}*Cc{1},-a21*Fc{2}*Cc{2}]; 
+    B = blkdiag(Bc{1},Bc{2});
+    C = blkdiag(Cc{1},Cc{2});
     sys = ss(A,B,C,[]);
     sys_d = c2d(sys, Ts); % Exact discretization of the global system
     %% Laplacian
-    l11 = 0; l12 = 1/R12; l21 = l12; l22 = 0;
-    L = [l11+l12,-l12; -l21, l21 + l22];
-    L_tilde = kron(L, eye(size(C_1,1)));
-    %% Exact discretization
-    sys1 = ss(A_1, [B_1 F_1], [], []);
-    sys1_d = c2d(sys1, Ts);
-    sys2 = ss(A_2, [B_2 F_2], [], []);
-    sys2_d = c2d(sys2, Ts);
+    L = [a11+a12,-a12; -a21, a21 + a22];
+    L_tilde = kron(L, eye(size(Cc{1},1)));
+    Agraph = [0, a12; a21, 0]; % graph matrix
+    %% Discretization of subsystems
+    for i = nb_subsystems:-1:1 % in descending order so that Matlab allocates free space
+        subsys = ss(Ac{i}, [Bc{i} Fc{i}], [], []);
+        subsys_d{i} = c2d(subsys, Ts);
+        Ai{i} = subsys_d{i}.A;
+        Bi{i} = subsys_d{i}.B(:,1);
+        Fi{i} = subsys_d{i}.B(:,2);
+        Ci{i} = Cc{i};
+    end
+    A_Ni = change_system_representation(Ai,Fi,Ci,Agraph);
+    %% Parameters for offline algorithm 1
+    U{1} = [1 0 0 0; 0 1 0 0]; U{2} = [0 0 1 0; 0 0 0 1];
+    W{1} = eye(4); W{2} = eye(4);
     
+    %% constraints
+    Gx_i{1}= [1,0; -1,0]; Gx_i{2} = Gx_i{1};
+    fx_i{1} = [1;1]; fx_i{2} = fx_i{1};
+    Gu_i{1} = [1;-1]; Gu_i{2} = Gu_i{1};
+    fu_i{1} = [1;1]; fu_i{2} = fu_i{1};
+    Gx = blkdiag(Gx_i{1}, Gx_i{2});
+    fx = [fx_i{1}; fx_i{2}];
+    Gu = blkdiag(Gu_i{1}, Gu_i{2});
+    fu = [fu_i{1}; fu_i{2}];
+    
+    graph = digraph([1 2], [2 1]); % or digraph(Agraph)
     %% put everything together
-    param.Ts = Ts;
-    param.A_1 = sys1_d.A;
-    param.B_1 = sys1_d.B(:,1);
-    param.F_1 = sys1_d.B(:,2);
-    param.A_2 = sys2_d.A;
-    param.B_2 = sys2_d.B(:,1);
-    param.F_2 = sys2_d.B(:,2);
-    param.C_1 = C_1;
-    param.C_2 = C_2;
+    param.Ts= Ts;
+    param.Ai = Ai;
+    param.Bi = Bi;
+    param.Fi = Fi;
+    param.Ci = Ci;
     param.L_tilde = L_tilde;
     param.global_sysd = sys_d;
-    param.Vr1 = Vr1;
-    param.Vr2 = Vr2;
-    param.Vin_1 = Vin_1;
-    param.Vin_2 = Vin_2;
+    param.U = U;
+    param.W = W;
+    param.Gx_i = Gx_i;
+    param.Gu_i = Gu_i;
+    param.fx_i = fx_i;
+    param.fu_i = fu_i;
+    param.Gx = Gx;
+    param.Gu = Gu;
+    param.fx = fx;
+    param.fu = fu;
+    param.Agraph = Agraph;
+    param.size_subsystem = 2;
+    param.number_subsystem = nb_subsystems;
+    param.Vr = Vr;
+    param.Vin= Vin;
     param.name = "2_DGU";
+    param.A_Ni = A_Ni;
+    param.graph = graph;
 
 end

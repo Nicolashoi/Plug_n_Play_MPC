@@ -24,11 +24,11 @@ function param = param_coupled_oscillator
     
     %% discretization based on laplacian intercon. to preserve structure
     for i = nb_subsystems:-1:1 % in descending order so that Matlab allocates free space
-        sys = ss(Ac{i}, [Bc{i} Fc{i}], [], []);
-        sys_d{i} = c2d(sys, Ts);
-        Ai{i} = sys_d{i}.A;
-        Bi{i} = sys_d{i}.B(:,1);
-        Fi{i} = sys_d{i}.B(:,2);
+        subsys = ss(Ac{i}, [Bc{i} Fc{i}], [], []);
+        subsys_d{i} = c2d(subsys, Ts);
+        Ai{i} = subsys_d{i}.A;
+        Bi{i} = subsys_d{i}.B(:,1);
+        Fi{i} = subsys_d{i}.B(:,2);
         Ci{i} = Cc{i};
     end
     
