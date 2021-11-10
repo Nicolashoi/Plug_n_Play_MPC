@@ -45,7 +45,8 @@ function param = param_coupled_oscillator
     Agraph = [0, a12; a21, 0]; % graph matrix
     L = [a12, -a12; -a21, a21];
     L_tilde = L;
-    A_Ni = change_system_representation(Ai,Fi,Ci,Agraph);
+    utils = utilityFunctions;
+    A_Ni = utils.change_system_representation(Ai,Fi,Ci,Agraph);
     %% Parameters for offline algorithm 1
     U{1} = [1 0 0 0; 0 1 0 0]; U{2} = [0 0 1 0; 0 0 0 1];
     W{1} = eye(4); W{2} = eye(4);

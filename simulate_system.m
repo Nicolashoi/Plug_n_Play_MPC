@@ -35,6 +35,8 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
             disp("LQR controller Gain"); disp(-Klqr);
             if param.name == "COUPLED_OSCI"
                 [X,U] = sim_global_coupled_osc(x0, length_sim, -Klqr,param);
+            elseif param.name == "2_DGU"
+                [X,U] = sim_global_DGU(x0, length_sim,-Klqr,param);
             end
         otherwise
             error("Simulation not implemented");
@@ -95,6 +97,29 @@ function [X,U] = sim_DGU_distributed(x0, length_sim, K,param)
          end
     end  
 end
+
+
+function [X,U] = sim_global_DGU(x0, length_sim, K,param)
+    
+    Ad = param.global_sysd.A; Bd = param.global_sysd.B; 
+    M = param.number_subsystem; % number of subsystems
+    Acl = Ad+Bd*K;
+    X = cell(length_sim+1,1); % state at each timestep
+    U = cell(length_sim,1); % control input at each timestep
+    X{1} = vertcat(x0{:}); % global initial state, vector Mx1
+    for n=1:length_sim
+        xconst = cell(1,M); uconst = cell(1,M); ufwd = cell(1,M);
+        for i =1:M
+            xconst{i} = [0;0;-param.Vr{i}];
+            ufwd{i} = [-param.Vr{i}; 0; 0];
+            uconst{i} = - param.Vr{i}/param.Vin{i}; 
+        end
+        X{n} = X{n} + vertcat(xconst{:});
+        U{n} = K*X{n} + vertcat(uconst{:}) + K*vertcat(ufwd{:});
+        X{n+1} = Ad*X{n} + Bd*U{n};
+    end     
+end
+
 
 function [X, U]= mpc_simulation(controller, x0, length_sim, param,...
                                           alpha, Q_Ni, Ri, Pi, Gamma_Ni)

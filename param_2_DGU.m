@@ -46,14 +46,16 @@ function param = param_2_DGU
         Fi{i} = subsys_d{i}.B(:,2);
         Ci{i} = Cc{i};
     end
-    A_Ni = change_system_representation(Ai,Fi,Ci,Agraph);
+    utils = utilityFunctions;
+    A_Ni = utils.change_system_representation(Ai,Fi,Ci,Agraph);
     %% Parameters for offline algorithm 1
-    U{1} = [1 0 0 0; 0 1 0 0]; U{2} = [0 0 1 0; 0 0 0 1];
-    W{1} = eye(4); W{2} = eye(4);
+    U{1} = [1 0 0 0 0 0; 0 1 0 0 0 0; 0 0 1 0 0 0]; 
+    U{2} = [0 0 0 1 0 0; 0 0 0 0 1 0; 0 0 0 0 0 1];
+    W{1} = eye(6); W{2} = eye(6);
     
     %% constraints
-    Gx_i{1}= [1,0; -1,0]; Gx_i{2} = Gx_i{1};
-    fx_i{1} = [1;1]; fx_i{2} = fx_i{1};
+    Gx_i{1}= [1,0, 0; -1,0, 0; 0, 1, 0; 0, -1, 0; 0, 0, 0]; Gx_i{2} = Gx_i{1};
+    fx_i{1} = [5;5; 2; 2;0; 0]; fx_i{2} = fx_i{1};
     Gu_i{1} = [1;-1]; Gu_i{2} = Gu_i{1};
     fu_i{1} = [1;1]; fu_i{2} = fu_i{1};
     Gx = blkdiag(Gx_i{1}, Gx_i{2});
@@ -81,7 +83,7 @@ function param = param_2_DGU
     param.fx = fx;
     param.fu = fu;
     param.Agraph = Agraph;
-    param.size_subsystem = 2;
+    param.size_subsystem = 3;
     param.number_subsystem = nb_subsystems;
     param.Vr = Vr;
     param.Il = Il;

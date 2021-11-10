@@ -4,17 +4,11 @@
 % BRIEF:
 %  
 
-function [Pi, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, system, passivity)
+function [Pi, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, param, passivity)
     % system choice
-    if system == "COUPLED_OSCI"
-            param = param_coupled_oscillator;
-        else
-            error("not implemented yet");
-    end
-    
     M = param.number_subsystem;
     if ~passivity
-        [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, system);
+        [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, param);
     elseif passivity
         Ki = cell(1,M); Pi = cell(1,M); Gamma_i = cell(1,M);
         K_Ni = cell(1,M); P_Ni = cell(1,M); Gamma_Ni = cell(1,M);

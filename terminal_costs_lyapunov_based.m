@@ -1,11 +1,6 @@
-function [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, system)
+function [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, param)
     objective = 0;
-    % system choice
-    if system == "COUPLED_OSCI"
-        param = param_coupled_oscillator;
-    else
-        error("not implemented yet");
-    end
+ 
     mi = param.size_subsystem;
     M = param.number_subsystem;
     global Ei E H_Ni Y_Ni E_Ni Ebar

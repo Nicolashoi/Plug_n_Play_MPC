@@ -14,7 +14,7 @@ addpath 'C:\Program Files\Mosek\9.3\toolbox\R2015aom'
 % 3: DGU units not well implemented yet
 clear
 close
-system = 1;
+system = 2;
 
 %% TEST 1: PASSIVITY VS LQR CONTROLLER
 close all
@@ -34,7 +34,9 @@ Q = 100*eye(size(Ad)); R = eye(size(Bd,2));
 sprintf("cost with passive controller is equal to %d", ...
          utils.compute_QR_cost(X,U,Q,R,config))
 if param.name == "COUPLED_OSCI"
-    utils.plot_states_coupled_osci(X,U,config, control_type);
+    utils.plot_states_coupled_osci(X,U,config, control_type, param);
+elseif param.name == "2_DGU"
+    utils.plot_DGU_system(X,U, config, control_type, param);
 end
 
 % USING LQR CONTROL
@@ -48,7 +50,9 @@ sprintf("cost of lqr controller using closed form solution %d", LQR_cost)
 sprintf("cost of lqr finite using function %d",...
         utils.compute_QR_cost(X,U,Q,R, config))
 if param.name == "COUPLED_OSCI"
-    utils.plot_states_coupled_osci(X,U,config, control_type);
+    utils.plot_states_coupled_osci(X,U,config, control_type, param);
+elseif param.name == "2_DGU"
+    utils.plot_DGU_system(X,U, config, control_type, param);
 end
  
  %% TEST 2; Offline Distributed synthesis with or without passivity
@@ -63,7 +67,7 @@ Q_Ni = {}; Ri = {};
      Ri{i} = 1*eye(size(param.Bi{i},2));
  end
  use_passivity = false; 
- [P, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, param.name, ...
+ [P, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, param, ...
                                                   use_passivity);
 alpha = zeros(param.number_subsystem,1);
  for i=1:param.number_subsystem
@@ -76,7 +80,7 @@ control_type = "MPC";
 [X,U] = simulate_system(@mpc_online, x0,length_sim, control_type, param,...
                          Q_Ni, Ri, P, Gamma_Ni, alpha);
 config = "DISTRIBUTED";
-utils.plot_states_coupled_osci(X,U, config, control_type)
+utils.plot_states_coupled_osci(X,U, config, control_type, param)
 
 %% FUNCTIONS 
 function [param, x0] = choose_system(system)
