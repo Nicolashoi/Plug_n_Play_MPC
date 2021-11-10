@@ -10,8 +10,8 @@ function param = param_2_DGU
     R2 = 0.3; L2 = 2e-3; Cap2 = 1.9e-3;
     R12 = 0.05; 
     Vin{1} = 48; Vin{2} = 48;
-    Vr{1} = 30;
-    Vr{2} = 30;
+    Vr{1} = 35; Il{1} = 5; 
+    Vr{2} = 30; Il{2} = 5;
     nb_subsystems = 2; 
     a11 = 0; a12 = 1/R12; a21 = a12; a22 = 0;
     %% Subystem dynamics
@@ -84,6 +84,7 @@ function param = param_2_DGU
     param.size_subsystem = 2;
     param.number_subsystem = nb_subsystems;
     param.Vr = Vr;
+    param.Il = Il;
     param.Vin= Vin;
     param.name = "2_DGU";
     param.A_Ni = A_Ni;

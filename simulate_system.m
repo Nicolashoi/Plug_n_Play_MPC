@@ -13,7 +13,7 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
         case "MPC"
             [X,U] = mpc_simulation(controller, x0, length_sim, param,...
                                           alpha, Q, R, Pi, Gamma_Ni);
-        case "Passivity" % passivity only
+        case "PASSIVITY" % passivity only
             M = param.number_subsystem;
             Kpass = cell(1,M); D = cell(1,M); Ppass = cell(1,M); 
             Gamma_pass = cell(1,M);
@@ -34,7 +34,7 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
             [Klqr,Pinf, ~] = dlqr(Ad, Bd, Q,R);
             disp("LQR controller Gain"); disp(-Klqr);
             if param.name == "COUPLED_OSCI"
-                [X,U] = sim_coupled_osc(x0, length_sim, -Klqr,param);
+                [X,U] = sim_global_coupled_osc(x0, length_sim, -Klqr,param);
             end
         otherwise
             error("Simulation not implemented");
@@ -46,7 +46,7 @@ function [X,U] = sim_oscill_distributed(x0, length_sim, K,param)
     M = param.number_subsystem; % number of subsystems
     X = cell(length_sim+1,1); % state at each timestep
     U = cell(length_sim,1); % control input at each timestep
-    X{1} = x0;
+    X{1} = horzcat(x0{:}); % columns are subsystem i
     for n=1:length_sim
          for i=1:M
             U{n}(:,i) = K{i}*X{n}(:,i);
@@ -61,14 +61,14 @@ function [X,U] = sim_oscill_distributed(x0, length_sim, K,param)
     end  
 end
 
-function [X,U] = sim_coupled_osc(x0, length_sim, K,param)
+function [X,U] = sim_global_coupled_osc(x0, length_sim, K,param)
     
     Ad = param.global_sysd.A; Bd = param.global_sysd.B; 
     %Bd(1:2,2) = [0;0]; Bd(3:4,1) = [0;0];
     Acl = Ad+Bd*K;
     X = cell(length_sim+1,1); % state at each timestep
     U = cell(length_sim,1); % control input at each timestep
-    X{1} = x0;
+    X{1} = vertcat(x0{:}); % global initial state, vector Mx1
     for n=1:length_sim
         X{n+1} = Acl*X{n};
         U{n} = K*X{n};
@@ -79,7 +79,7 @@ function [X,U] = sim_DGU_distributed(x0, length_sim, K,param)
     M = param.number_subsystem; % number of subsystems
     X = cell(length_sim+1,1); % state at each timestep
     U = cell(length_sim,1); % control input at each timestep
-    X{1} = x0;
+    X{1} = horzcat(x0{:}); % columns are subsystem i
     for n=1:length_sim
          for i=1:M
             X{n}(:,i) = X{n}(:,i) + [0;0;-param.Vr{i}];
@@ -102,7 +102,7 @@ function [X, U]= mpc_simulation(controller, x0, length_sim, param,...
         M = param.number_subsystem; % number of subsystems
         X = cell(length_sim+1,1); % state at each timestep
         U = cell(length_sim,1); % control input at each timestep
-        X{1} = x0; % initial state
+        X{1} = horzcat(x0{:}); % initial state columns are subsystem i
         N = 10; % Horizon
         for n = 1:length_sim % loop over all subsystem
             % control input is of size nu x M
