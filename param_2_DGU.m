@@ -6,21 +6,21 @@
 
 function param = param_2_DGU
     %% Converter Parameters
-    R1 = 0.2; L1 = 1.8e-3; Cap1 = 2.2e-3;
-    R2 = 0.3; L2 = 2e-3; Cap2 = 1.9e-3;
+    R{1} = 0.2; L1 = 1.8e-3; Cap1 = 2.2e-3;
+    R{2} = 0.3; L2 = 2e-3; Cap2 = 1.9e-3;
     R12 = 0.05; 
-    Vin{1} = 48; Vin{2} = 48;
-    Vr{1} = 35; Il{1} = 5; 
-    Vr{2} = 30; Il{2} = 5;
+    Vin{1} = 100; Vin{2} = 60;
+    Vr{1} = 48; Il{1} = 5; 
+    Vr{2} = 46; Il{2} = 5;
     nb_subsystems = 2; 
     a11 = 0; a12 = 1/R12; a21 = a12; a22 = 0;
     %% Subystem dynamics
     Ts = 1e-5; % sampling time
-    Ac{1} = [0, 1/Cap1, 0; -1/L1, -R1/L1, 0; 1/Ts, 0, 0];
+    Ac{1} = [0, 1/Cap1, 0; -1/L1, -R{1}/L1, 0; 1/Ts, 0, 0];
     Bc{1} = [0; Vin{1}/L1; 0];
     Fc{1} = [1/Cap1; 0; 0];
     Cc{1} = [1, 0, 0];
-    Ac{2} = [0, 1/Cap2, 0; -1/L2, -R2/L2, 0; 1/Ts, 0, 0];
+    Ac{2} = [0, 1/Cap2, 0; -1/L2, -R{2}/L2, 0; 1/Ts, 0, 0];
     Bc{2} = [0; Vin{2}/L2; 0];
     Fc{2} = [1/Cap2; 0; 0];
     Cc{2} = Cc{1};
@@ -54,10 +54,10 @@ function param = param_2_DGU
     W{1} = eye(6); W{2} = eye(6);
     
     %% constraints
-    Gx_i{1}= [1,0, 0; -1,0, 0; 0, 1, 0; 0, -1, 0; 0, 0, 0]; Gx_i{2} = Gx_i{1};
-    fx_i{1} = [5;5; 2; 2;0; 0]; fx_i{2} = fx_i{1};
+    Gx_i{1}= [1,0, 0; -1,0, 0; 0, 1, 0; 0, -1, 0]; Gx_i{2} = Gx_i{1};
+    fx_i{1} = [500;500; 200; 200]; fx_i{2} = fx_i{1};
     Gu_i{1} = [1;-1]; Gu_i{2} = Gu_i{1};
-    fu_i{1} = [1;1]; fu_i{2} = fu_i{1};
+    fu_i{1} = [1000;1000]; fu_i{2} = fu_i{1};
     Gx = blkdiag(Gx_i{1}, Gx_i{2});
     fx = [fx_i{1}; fx_i{2}];
     Gu = blkdiag(Gu_i{1}, Gu_i{2});
@@ -87,9 +87,10 @@ function param = param_2_DGU
     param.number_subsystem = nb_subsystems;
     param.Vr = Vr;
     param.Il = Il;
+    param.R = R;
     param.Vin= Vin;
     param.name = "2_DGU";
     param.A_Ni = A_Ni;
     param.graph = graph;
-
+    
 end

@@ -5,18 +5,19 @@
 % Following Algorithm 2 of "Distributed Synthesis and Control of Constrained
 % Linear Systems"
 
-function u0 = mpc_online(x0, alpha, Q_Ni, Ri, Pi, N)
-    persistent param mpc_optimizer
+function u0 = mpc_online(x0, alpha, Q_Ni, Ri, Pi, N, param)
+    persistent mpc_optimizer
     % initialize controller, if not done already
-    if isempty(param)
-        [param, mpc_optimizer] = init_optimizer(Q_Ni, Ri, Pi, N);
+    if isempty(mpc_optimizer)
+        mpc_optimizer = init_optimizer(Q_Ni, Ri, Pi, N, param);
     end
-    %[u0, ~, ~, ~, ~, feasibility]= mpc_optimizer(x0, alpha);
-    u0 = mpc_optimizer(x0, alpha);
+    [u0, ~, ~, ~, ~, feasibility]= mpc_optimizer(x0, alpha);
+    disp(feasibility.infostr);
+    %u0 = mpc_optimizer(x0, alpha);
 end
  
-function [param, mpc_optimizer] = init_optimizer(Q_Ni, Ri, Pi, N)
-    param = param_coupled_oscillator;
+function mpc_optimizer = init_optimizer(Q_Ni, Ri, Pi, N, param)
+    %param = param_2_DGU;
     M = param.number_subsystem;
     %% create variables for optimizer
     nx = size(param.Ai{1},1);
@@ -49,10 +50,10 @@ function [param, mpc_optimizer] = init_optimizer(Q_Ni, Ri, Pi, N)
                                                        param.Bi{i}*U{k}(:,i)];
             % state constraints
             constraints = [constraints, param.Gx_i{i} * X{k}(:,i)...
-                                        <= param.fx_i{i}];
+                                      <= param.fx_i{i}];
             % input constraints
             constraints = [constraints, param.Gu_i{i} * U{k}(:,i)...
-                                        <= param.fu_i{i}];
+                                       <= param.fu_i{i}];
             % sum of local functions l(xi,uf) %
             objective = objective + X_Ni{i,k}'*Q_Ni{i}*X_Ni{i,k} + U{k}(:,i)'*Ri{i}*...   
                                     U{k}(:,i);

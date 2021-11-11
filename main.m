@@ -14,7 +14,7 @@ addpath 'C:\Program Files\Mosek\9.3\toolbox\R2015aom'
 % 3: DGU units not well implemented yet
 clear
 close
-system = 2;
+system = 3;
 
 %% TEST 1: PASSIVITY VS LQR CONTROLLER
 close all
@@ -30,14 +30,10 @@ control_type = "PASSIVITY";
 config = "DISTRIBUTED";
 [X,U] = simulate_system(@controller_passivity, x0,length_sim, control_type, param);
 
-Q = 100*eye(size(Ad)); R = eye(size(Bd,2));
+Q = eye(size(Ad)); R = 10*eye(size(Bd,2));
 sprintf("cost with passive controller is equal to %d", ...
          utils.compute_QR_cost(X,U,Q,R,config))
-if param.name == "COUPLED_OSCI"
-    utils.plot_states_coupled_osci(X,U,config, control_type, param);
-elseif param.name == "2_DGU"
-    utils.plot_DGU_system(X,U, config, control_type, param);
-end
+plot_simulation(X,U, config, control_type, param, utils)
 
 % USING LQR CONTROL
 control_type = "LQR";
@@ -49,11 +45,7 @@ LQR_cost = vertcat(x0{:})'*Pinf*vertcat(x0{:});
 sprintf("cost of lqr controller using closed form solution %d", LQR_cost)
 sprintf("cost of lqr finite using function %d",...
         utils.compute_QR_cost(X,U,Q,R, config))
-if param.name == "COUPLED_OSCI"
-    utils.plot_states_coupled_osci(X,U,config, control_type, param);
-elseif param.name == "2_DGU"
-    utils.plot_DGU_system(X,U, config, control_type, param);
-end
+plot_simulation(X,U, config, control_type, param, utils)
  
  %% TEST 2; Offline Distributed synthesis with or without passivity
  % Compute Ki, Pi using passivity or Lyapunov, solve LP to obtain alpha and 
@@ -74,15 +66,23 @@ alpha = zeros(param.number_subsystem,1);
     alpha(i) = alpha_i; % same alpha for every subsystem in the beginning
  end
  % send to online controller
-% x0 = [0.3 -0.4; 0 -0]; % columns are subsystem i
 length_sim = 500;
 control_type = "MPC";
 [X,U] = simulate_system(@mpc_online, x0,length_sim, control_type, param,...
                          Q_Ni, Ri, P, Gamma_Ni, alpha);
 config = "DISTRIBUTED";
-utils.plot_states_coupled_osci(X,U, config, control_type, param)
-
+plot_simulation(X,U, config, control_type, param, utils)
 %% FUNCTIONS 
+
+function plot_simulation(X,U, config, control_type, param, utils)
+    if param.name == "COUPLED_OSCI"
+        utils.plot_states_coupled_osci(X,U,config, control_type, param);
+    elseif param.name == "2_DGU"
+        utils.plot_DGU_system(X,U, config, control_type, param);
+    end
+end
+
+
 function [param, x0] = choose_system(system)
     switch system
         case 1
@@ -95,8 +95,8 @@ function [param, x0] = choose_system(system)
             x0{2} = [-0.2; 0.1];
         case 3
             param = param_2_DGU;
-            x0{1} = [32; 2; 0]; 
-            x0{2} = [30; 2 ;0];
+            x0{1} = [52; 2; 0]; 
+            x0{2} = [42; 2 ;0];
         otherwise
             error("system not implemented yet")
     end
