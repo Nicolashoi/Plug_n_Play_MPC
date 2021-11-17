@@ -13,7 +13,7 @@ function param = param_mass_damper
     %% Constant parameters
     m1 = 1; m2 = m1; % mass 
     k1 = 2; b1 = 1; % spring and damper constants for mass 1
-    k2 = 0.5; b2 = k2; % DO NOT CHANGE THIS SINCE WE ASSUME THAT B=K
+    k2 = 0.01; b2 = k2; % DO NOT CHANGE THIS SINCE WE ASSUME THAT B=K
     k3 = k1; b3 = b1;
     a12 = k2; a21 = a12; % laplacian terms
     nb_subsystems = 2;   

@@ -23,14 +23,14 @@ close all
 Ad = param.global_sysd.A; Bd = param.global_sysd.B; 
 Cd = param.global_sysd.C;
 
-length_sim = 500;
+length_sim = 100;
 utils = utilityFunctions;
 % USING PASSIVITY (DISTRIBUTED CONTROL)
 control_type = "PASSIVITY";
 config = "DISTRIBUTED";
 [X,U] = simulate_system(@controller_passivity, x0,length_sim, control_type, param);
 
-Q = eye(size(Ad)); R = 10*eye(size(Bd,2));
+Q = eye(size(Ad)); R = eye(size(Bd,2));
 sprintf("cost with passive controller is equal to %d", ...
          utils.compute_QR_cost(X,U,Q,R,config))
 plot_simulation(X,U, config, control_type, param, utils)
@@ -95,8 +95,8 @@ function [param, x0] = choose_system(system)
             x0{2} = [-0.2; 0.1];
         case 3
             param = param_2_DGU;
-            x0{1} = [52; 2; 0]; 
-            x0{2} = [42; 2 ;0];
+            x0{1} = [50.1; 0; 0]; 
+            x0{2} = [49.9; 0 ;0];
         otherwise
             error("system not implemented yet")
     end

@@ -2,7 +2,7 @@
 classdef utilityFunctions
     methods (Static)
        
-        %% 
+        %% Change representation from passivity paper to x_Ni neighbor states
         function A_Ni = change_system_representation(Ai,Fi,Ci,Agraph)
             M = size(Ai,2); % number of subsystems    
             G = digraph(Agraph);
@@ -19,6 +19,23 @@ classdef utilityFunctions
                 A_Ni{i} = cell2mat(Acell);    
             end
         end
+        
+        %% Compute references for DGU system
+        function [di_ref, Iti_ref] = compute_ref()
+            DGU_PARAM_ELEC
+            M = nb_subsystems;
+            di_ref = cell(1,M); Iti_ref = cell(1,M);
+            G = digraph(Agraph);
+            for i= 1:M
+                out_neighbors = sort([successors(G, i)]);
+                Vi = repmat(Vr{i}, size(Vr{out_neighbors}));
+                sum_over_Ni = sum((Vi - Vr{out_neighbors})./Rij(i,out_neighbors));
+                di_ref{i} = (Vr{i}+ Il{i}*R{i})/Vin{i} + R{i}/Vin{i}*sum_over_Ni;
+                Iti_ref = (di_ref{i}*Vin{i} - Vr{i})/R{i};
+            end     
+        end
+        
+        
         %% Compute Finite Cost given state, input, Q and R
         function cost = compute_QR_cost(X,U,Q,R, config)
             cost = 0;
@@ -83,8 +100,7 @@ classdef utilityFunctions
             grid on
             hold off
         end
-        
-        %%
+        %% Plot DGU system
         function plot_DGU_system(X,U, config, control_type, param)  
              M = param.number_subsystem;
              lgd = cell(1,M);
