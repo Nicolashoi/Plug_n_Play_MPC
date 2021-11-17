@@ -12,9 +12,10 @@ addpath 'C:\Program Files\Mosek\9.3\toolbox\R2015aom'
 % 1: coupled oscillator with spring only, no dampers
 % 2: coupled damped oscillator, spring + oscillators
 % 3: DGU units not well implemented yet
+% 4: DGU units in delta form
 clear
 close
-system = 3;
+system = 4;
 
 %% TEST 1: PASSIVITY VS LQR CONTROLLER
 close all
@@ -55,7 +56,7 @@ utils = utilityFunctions;
 Q_Ni = {}; Ri = {};
  for i = 1:param.number_subsystem
      m_Ni = size(param.W{i},1);
-     Q_Ni{i} =100*eye(m_Ni);
+     Q_Ni{i} =1*eye(m_Ni);
      Ri{i} = 1*eye(size(param.Bi{i},2));
  end
  use_passivity = false; 
@@ -97,6 +98,10 @@ function [param, x0] = choose_system(system)
             param = param_2_DGU;
             x0{1} = [50.1; 0; 0]; 
             x0{2} = [49.9; 0 ;0];
+        case 4
+            param = param_DGU_delta;
+            x0{1} = [50.1; 5.1]; 
+            x0{2} = [49.9; 4.9];
         otherwise
             error("system not implemented yet")
     end

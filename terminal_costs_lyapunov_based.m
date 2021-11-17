@@ -33,12 +33,10 @@ end
 function constraints = define_constraints(Q_Ni, Ri, param, mi, M)
     epsilon = 1e-5; % tolerance for positive definite constraint on E and E_Ni
     global Ei E H_Ni Y_Ni E_Ni Ebar
-    A_Ni = cell(1,M);
     pi = size(param.Bi{1},2);
     constraints = [];
     %% Constraint definition
     for i = 1:M
-        A_Ni{i} = param.U{i}*param.global_sysd.A*param.W{i};
         m_Ni = size(param.W{i},1); % size of the set Ni (i and it's neighbors)
         % decision variables dependent on it's subsystem neighbors set size
         Ebar{i} = param.W{i}*param.U{i}' * Ei{i}* param.U{i}* param.W{i}';
@@ -47,9 +45,9 @@ function constraints = define_constraints(Q_Ni, Ri, param, mi, M)
         Y_Ni{i} = sdpvar(pi, m_Ni, 'full');
         constraints = [constraints, Ei{i} >= epsilon*eye(size(Ei{i})),...
                        E_Ni{i} >= epsilon*eye(size(E_Ni{i}))] ; %P.D
-        LMI{1} = [Ebar{i} + H_Ni{i}, E_Ni{i}*A_Ni{i}'+Y_Ni{i}'*param.Bi{i}',...
+        LMI{1} = [Ebar{i} + H_Ni{i}, E_Ni{i}*param.A_Ni{i}'+Y_Ni{i}'*param.Bi{i}',...
                  E_Ni{i}*Q_Ni{i}^(1/2), Y_Ni{i}'*Ri{i}^(1/2)];
-        LMI{2} = [A_Ni{i}*E_Ni{i}+ param.Bi{i}*Y_Ni{i}, Ei{i}, zeros(mi,m_Ni),...
+        LMI{2} = [param.A_Ni{i}*E_Ni{i}+ param.Bi{i}*Y_Ni{i}, Ei{i}, zeros(mi,m_Ni),...
                   zeros(mi,pi)];
         LMI{3} = [(Q_Ni{i}^1/2)*E_Ni{i},zeros(m_Ni,mi), eye(m_Ni),...
                     zeros(m_Ni, pi)];

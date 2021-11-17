@@ -31,7 +31,7 @@ classdef utilityFunctions
                 Vi = repmat(Vr{i}, size(Vr{out_neighbors}));
                 sum_over_Ni = sum((Vi - Vr{out_neighbors})./Rij(i,out_neighbors));
                 di_ref{i} = (Vr{i}+ Il{i}*R{i})/Vin{i} + R{i}/Vin{i}*sum_over_Ni;
-                Iti_ref = (di_ref{i}*Vin{i} - Vr{i})/R{i};
+                Iti_ref{i} = (di_ref{i}*Vin{i} - Vr{i})/R{i};
             end     
         end
         

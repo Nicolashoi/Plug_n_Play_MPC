@@ -45,19 +45,30 @@ function param = param_DGU_delta
     
     A_Ni = utils.change_system_representation(Ai,Fi,Ci,Agraph);
     %% Parameters for offline algorithm 1
-    U{1} = [1 0 0 0 0 0; 0 1 0 0 0 0; 0 0 1 0 0 0]; 
-    U{2} = [0 0 0 1 0 0; 0 0 0 0 1 0; 0 0 0 0 0 1];
-    W{1} = eye(6); W{2} = eye(6);
+    U{1} = [1 0 0 0; 0 1 0 0]; 
+    U{2} = [0 0 1 0; 0 0 0 1];
+    W{1} = eye(4); W{2} = eye(4);
     
-    %% constraints
-    Gx_i{1}= [1,0, 0; -1,0, 0; 0, 1, 0; 0, -1, 0]; Gx_i{2} = Gx_i{1};
-    fx_i{1} = [500;500; 200; 200]; fx_i{2} = fx_i{1};
-    Gu_i{1} = [1;-1]; Gu_i{2} = Gu_i{1};
-    fu_i{1} = [1000;1000]; fu_i{2} = fu_i{1};
-    Gx = blkdiag(Gx_i{1}, Gx_i{2});
-    fx = [fx_i{1}; fx_i{2}];
-    Gu = blkdiag(Gu_i{1}, Gu_i{2});
-    fu = [fu_i{1}; fu_i{2}];
+    %% constraints now in delta formulation
+    Xref = cell(1,nb_subsystems);
+    Uref = cell(1,nb_subsystems);
+    Gx_i = cell(1,nb_subsystems);
+    Gu_i = cell(1,nb_subsystems);
+    fx_i = cell(1,nb_subsystems);
+    fu_i = cell(1,nb_subsystems);
+    for i= 1:nb_subsystems
+        Xref{i} = [Vr{i}; Iti_ref{i}];
+        Uref{i} = di_ref{i};
+        Gx_i{i}= [1,0;-1 0; 0 1; 0 -1];
+        Gu_i{i} = [1;-1];
+        fx_i{i} = [60; -40; 10; 0] + [-Xref{i}; Xref{i}];
+        fu_i{i} = [1;0] + [-Uref{i}; Uref{i}];
+    end 
+   
+    Gx = blkdiag(Gx_i{:});
+    fx = [fx_i{:}];
+    Gu = blkdiag(Gu_i{:});
+    fu = [fu_i{:}];
     
     graph = digraph([1 2], [2 1]); % or digraph(Agraph)
     %% put everything together
@@ -79,14 +90,15 @@ function param = param_DGU_delta
     param.fx = fx;
     param.fu = fu;
     param.Agraph = Agraph;
-    param.size_subsystem = 3;
+    param.size_subsystem = 2;
     param.number_subsystem = nb_subsystems;
     param.Vr = Vr;
     param.Il = Il;
     param.R = R;
     param.Vin= Vin;
-    param.name = "2_DGU";
+    param.name = "DGU_delta";
     param.A_Ni = A_Ni;
     param.graph = graph;
-    
+    param.Xref = Xref;
+    param.Uref = Uref;
 end

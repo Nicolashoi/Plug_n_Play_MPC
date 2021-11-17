@@ -17,6 +17,10 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
             elseif param.name == "2_DGU"
                 [X,U] = mpc_sim_DGU(controller, x0, length_sim, param,...
                                           alpha, Q, R, Pi, Gamma_Ni);
+            elseif param.name == "DGU_delta"
+            [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
+                                      alpha, Q, R, Pi, Gamma_Ni);
+          
             end
             
         case "PASSIVITY" % passivity only
@@ -165,6 +169,41 @@ function [X, U]= mpc_sim_oscill(controller, x0, length_sim, param,...
         end                                     
 end
    
+
+function [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
+                                          alpha, Q_Ni, Ri, Pi, Gamma_Ni)
+                                      
+        M = param.number_subsystem; % number of subsystems
+        dX = cell(length_sim+1,1); % state at each timestep
+        dU = cell(length_sim,1); % control input at each timestep
+        X = cell(length_sim+1,1); % state at each timestep
+        U = cell(length_sim,1); % control input at each timestep
+        X{1} = horzcat(x0{:}); % initial state columns are subsystem i    
+        dX{1} = X{1} - horzcat(param.Xref{:});
+        N = 10; % Horizon
+        clear mpc_online
+        for n = 1:length_sim % loop over all subsystem
+            % control input is of size nu x M
+            dU{n} = controller(dX{n}, alpha, Q_Ni, Ri, Pi, N, param); % get first control input
+            U{n} = dU{n} + param.U_ref;
+            if isnan(dU{n})
+                error("Input to apply to controller is Nan at iteration %d",n);
+            end
+            for i=1:M
+                neighbors = [i, successors(param.graph, i)]; % get neighbors
+                neighbors = sort(neighbors); % sorted neighbor list
+                % create neighbor state vector comprising the state of subsystem i
+                % and the state of it's neighbors (concatenated)
+                x_Ni = reshape(dX{n}(:,neighbors),[],1); 
+                % Apply first input to the system and get next state
+                dX{n+1}(:, i) = param.A_Ni{i}*x_Ni + param.Bi{i}*dU{n}(:,i);
+                X{n+1}(:,i) = dX{n+1}(:,i) + param.Xref{i};
+                % update variable constraining terminal set of each subsystem
+                alpha(i) = alpha(i) + x_Ni'*Gamma_Ni{i}*x_Ni;
+            end
+        end                                                                             
+end
+
 function [X, U]= mpc_sim_DGU(controller, x0, length_sim, param,...
                                           alpha, Q_Ni, Ri, Pi, Gamma_Ni)
   
