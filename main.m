@@ -59,7 +59,7 @@ Q_Ni = {}; Ri = {};
      Q_Ni{i} =1*eye(m_Ni);
      Ri{i} = 1*eye(size(param.Bi{i},2));
  end
- use_passivity = false; 
+ use_passivity = true; 
  [P, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, param, ...
                                                   use_passivity);
 alpha = zeros(param.number_subsystem,1);
@@ -67,7 +67,7 @@ alpha = zeros(param.number_subsystem,1);
     alpha(i) = alpha_i; % same alpha for every subsystem in the beginning
  end
  % send to online controller
-length_sim = 500;
+length_sim = 30;
 control_type = "MPC";
 [X,U] = simulate_system(@mpc_online, x0,length_sim, control_type, param,...
                          Q_Ni, Ri, P, Gamma_Ni, alpha);
@@ -78,7 +78,7 @@ plot_simulation(X,U, config, control_type, param, utils)
 function plot_simulation(X,U, config, control_type, param, utils)
     if param.name == "COUPLED_OSCI"
         utils.plot_states_coupled_osci(X,U,config, control_type, param);
-    elseif param.name == "2_DGU"
+    elseif param.name == "2_DGU" || param.name == "DGU_delta" 
         utils.plot_DGU_system(X,U, config, control_type, param);
     end
 end

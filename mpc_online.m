@@ -51,7 +51,7 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, Pi, N, param)
             % state constraints
             constraints = [constraints, param.Gx_i{i} * X{k}(:,i)...
                                       <= param.fx_i{i}];
-            % input constraints
+%             % input constraints
             constraints = [constraints, param.Gu_i{i} * U{k}(:,i)...
                                        <= param.fu_i{i}];
             % sum of local functions l(xi,uf) %
@@ -61,7 +61,7 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, Pi, N, param)
         % Terminal cost
         objective = objective + X{end}(:,i)'*Pi{i}*X{end}(:,i);
         constraints = [constraints, X{end}(:,i)'*Pi{i}*X{end}(:,i)...
-                                    <= alpha_var(i)];                             
+                                  <= alpha_var(i)];                             
     end    
     % parameter for initial condition
     constraints = [constraints, X{1} == X0];

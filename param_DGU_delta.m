@@ -59,9 +59,9 @@ function param = param_DGU_delta
     for i= 1:nb_subsystems
         Xref{i} = [Vr{i}; Iti_ref{i}];
         Uref{i} = di_ref{i};
-        Gx_i{i}= [1,0;-1 0; 0 1; 0 -1];
+        Gx_i{i}= [eye(2); -eye(2)];
         Gu_i{i} = [1;-1];
-        fx_i{i} = [60; -40; 10; 0] + [-Xref{i}; Xref{i}];
+        fx_i{i} = [55; 10; -45; 0] + [-Xref{i}; Xref{i}];
         fu_i{i} = [1;0] + [-Uref{i}; Uref{i}];
     end 
    

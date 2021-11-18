@@ -18,7 +18,7 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
                 [X,U] = mpc_sim_DGU(controller, x0, length_sim, param,...
                                           alpha, Q, R, Pi, Gamma_Ni);
             elseif param.name == "DGU_delta"
-            [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
+                [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
                                       alpha, Q, R, Pi, Gamma_Ni);
           
             end
@@ -185,7 +185,7 @@ function [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
         for n = 1:length_sim % loop over all subsystem
             % control input is of size nu x M
             dU{n} = controller(dX{n}, alpha, Q_Ni, Ri, Pi, N, param); % get first control input
-            U{n} = dU{n} + param.U_ref;
+            U{n} = dU{n} + horzcat(param.Uref{:});
             if isnan(dU{n})
                 error("Input to apply to controller is Nan at iteration %d",n);
             end
