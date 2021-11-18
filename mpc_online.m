@@ -12,7 +12,9 @@ function u0 = mpc_online(x0, alpha, Q_Ni, Ri, Pi, N, param)
         mpc_optimizer = init_optimizer(Q_Ni, Ri, Pi, N, param);
     end
     [u0, ~, ~, ~, ~, feasibility]= mpc_optimizer(x0, alpha);
-    disp(feasibility.infostr);
+    if isequal(feasibility.problem,1)
+        disp(feasibility.infostr);
+    end
     %u0 = mpc_optimizer(x0, alpha);
 end
  

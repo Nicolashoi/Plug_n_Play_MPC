@@ -15,7 +15,9 @@ function [Pi, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, param, pass
         for i=1:M
             [Ki{i}, ~, Pi{i}, Gamma_i{i}] = controller_passivity(param.Ai{i},...
                                             param.Bi{i}, param.Ci{i},param.Fi{i},...
-                                            param.L_tilde, param.global_sysd.C); 
+                                            param.L_tilde, param.global_sysd.C);
+            sprintf("passivity gain of system %d is", i)
+            disp(Ki{i});
         end
         for i=1:M
             neighbors = sort([i, successors(param.graph, i)]); 

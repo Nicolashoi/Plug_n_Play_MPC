@@ -54,8 +54,8 @@ function param = param_2_DGU
     W{1} = eye(6); W{2} = eye(6);
     
     %% constraints
-    Gx_i{1}= [1,0, 0; -1,0, 0; 0, 1, 0; 0, -1, 0]; Gx_i{2} = Gx_i{1};
-    fx_i{1} = [800;-400; 10; 10]; fx_i{2} = fx_i{1};
+    Gx_i{1}= [eye(3); -eye(3)]; Gx_i{2} = Gx_i{1};
+    fx_i{1} = [80;10;1000000; -30; 0; 100000]; fx_i{2} = fx_i{1};
     Gu_i{1} = [1;-1]; Gu_i{2} = Gu_i{1};
     fu_i{1} = [1000;1000]; fu_i{2} = fu_i{1};
     Gx = blkdiag(Gx_i{1}, Gx_i{2});
