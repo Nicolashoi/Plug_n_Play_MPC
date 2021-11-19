@@ -8,30 +8,36 @@ classdef utilityFunctions
             G = digraph(Agraph);
             A_Ni = cell(1,M);
             for i=1:M
-                out_neighbors = sort([i,successors(G, i)]);
+                out_neighbors = sort([i;successors(G, i)]);
                 Acell = cell(1,length(out_neighbors));
-                Acell{i} = Ai{i} - Fi{i}*sum(Agraph(i,:))*Ci{i};
-                out_neighbors(i) = [];
+                %Acell{i} = Ai{i} - Fi{i}*sum(Agraph(i,:))*Ci{i};
+                %out_neighbors(i) = [];
                 for j=1:length(out_neighbors)
-                   Acell{out_neighbors(j)} = Fi{i}*Agraph(i, out_neighbors(j))*...
+                    if isequal(out_neighbors(j), i)
+                        Acell{j} = Ai{i} - Fi{i}*sum(Agraph(i,:))*Ci{i};
+                        
+                    else
+                        Acell{j} = Fi{i}*Agraph(i, out_neighbors(j))*...
                                              Ci{out_neighbors(j)};
+                    end
+                   
                 end
-                A_Ni{i} = cell2mat(Acell);    
+                A_Ni{i} = cell2mat(Acell);  
             end
         end
         
         %% Compute references for DGU system
-        function [di_ref, Iti_ref] = compute_ref()
-            DGU_PARAM_ELEC
-            M = nb_subsystems;
-            di_ref = cell(1,M); Iti_ref = cell(1,M);
+        function [di_ref, Iti_ref] = compute_ref(M,Agraph, Vr,Il, Rij, R, Vin)
+            %load('system/DGU_electrical_param.mat')
+            %M = nb_subsystems;
+            di_ref = zeros(1,M); Iti_ref = zeros(1,M);
             G = digraph(Agraph);
             for i= 1:M
                 out_neighbors = sort([successors(G, i)]);
-                Vi = repmat(Vr{i}, size(Vr{out_neighbors}));
-                sum_over_Ni = sum((Vi - Vr{out_neighbors})./Rij(i,out_neighbors));
-                di_ref{i} = (Vr{i}+ Il{i}*R{i})/Vin{i} + R{i}/Vin{i}*sum_over_Ni;
-                Iti_ref{i} = (di_ref{i}*Vin{i} - Vr{i})/R{i};
+                Vi = repmat(Vr(i), size(Vr(out_neighbors)));
+                sum_over_Ni = sum((Vi - Vr(out_neighbors))./Rij(i,out_neighbors));
+                di_ref(i) = (Vr(i)+ Il(i)*R(i))/Vin(i) + R(i)/Vin(i)*sum_over_Ni;
+                Iti_ref(i) = (di_ref(i)*Vin(i) - Vr(i))/R(i);
             end     
         end
         
@@ -129,8 +135,9 @@ classdef utilityFunctions
                 controller = cell2mat(U)'; %first row u1, second row u2, column are timesteps
             else
                 error("not implemented configuration in plot states");
-            end
-
+             end
+            sim_steps = 1:1:length(voltage{1});
+            t = param.Ts .* sim_steps;
             figure()
             sgtitle(control_type);
             subplot(2,1,1)
@@ -138,7 +145,7 @@ classdef utilityFunctions
             
             hold on
             for i = 1:M
-                plot(voltage{i});
+                plot(t,voltage{i});
             end
             legend(string(lgd));
             grid on
@@ -147,7 +154,7 @@ classdef utilityFunctions
             title('Converter Currents');
             hold on
             for i = 1:M
-                plot(current{i});
+                plot(t, current{i});
             end
             legend(string(lgd));
             grid on
@@ -157,7 +164,7 @@ classdef utilityFunctions
             title("Controller  " + control_type)
             hold on
             for i = 1:M
-                plot(controller(i,:));
+                plot(t(1:end-1), controller(i,:));
             end
             legend(string(lgd));
             grid on

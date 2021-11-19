@@ -7,7 +7,7 @@
 clear
 % USE MOSEK as solver (ADD to path)
 addpath 'C:\Program Files\Mosek\9.3\toolbox\R2015aom'
-
+addpath(genpath(cd));
 %% Choose SYSTEM TO USE
 % 1: coupled oscillator with spring only, no dampers
 % 2: coupled damped oscillator, spring + oscillators
@@ -24,7 +24,7 @@ close all
 Ad = param.global_sysd.A; Bd = param.global_sysd.B; 
 Cd = param.global_sysd.C;
 
-length_sim = 100;
+length_sim = 50;
 utils = utilityFunctions;
 % USING PASSIVITY (DISTRIBUTED CONTROL)
 control_type = "PASSIVITY";
@@ -100,8 +100,10 @@ function [param, x0] = choose_system(system)
             x0{2} = [49.9; 0 ;0];
         case 4
             param = param_DGU_delta;
-            x0{1} = [50.1; 5.1]; 
-            x0{2} = [49.9; 4.9];
+            x0 = cell(1, param.number_subsystem);
+            for i=1:param.number_subsystem
+                x0{i} = [50;0];
+            end
         otherwise
             error("system not implemented yet")
     end

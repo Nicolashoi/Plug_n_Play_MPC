@@ -32,8 +32,9 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
                                              param.Ai{i}, param.Bi{i},...
                                              param.Ci{i}, param.Fi{i}, ...
                                              param.L_tilde, param.global_sysd.C);
+            disp("Passive controller Gain"); disp(Kpass{i});
             end
-            %disp("Passive controller Gain"); disp(Kpass{:});
+            
             if param.name == "COUPLED_OSCI"
                 [X,U] = sim_oscill_distributed(x0, length_sim, Kpass,param);
             elseif param.name == "2_DGU" || param.name == "DGU_delta"
@@ -45,7 +46,7 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
             disp("LQR controller Gain"); disp(-Klqr);
             if param.name == "COUPLED_OSCI"
                 [X,U] = sim_global_coupled_osc(x0, length_sim, -Klqr,param);
-            elseif param.name == "2_DGU"
+            elseif param.name == "2_DGU" || param.name == "DGU_delta"
                 [X,U] = sim_global_DGU(x0, length_sim,-Klqr,param);
             end
         otherwise
@@ -154,14 +155,14 @@ function [X,U] = sim_DGU_distributed(x0, length_sim, K,param)
         for n=1:length_sim
              for i=1:M
                 dU{n}(:,i) = K{i}*dX{n}(:,i);
-                U{n} = dU{n} + horzcat(param.Uref{:});
-                neighbors = [i, successors(param.graph, i)]; % get neighbors
+                U{n} = dU{n} + param.Uref{i};
+                neighbors = [i; successors(param.graph, i)]; % get neighbors
                 neighbors = sort(neighbors); % sorted neighbor list
                 % create neighbor state vector comprising the state of subsystem i
                 % and the state of it's neighbors (concatenated)
                 x_Ni = reshape(dX{n}(:,neighbors),[],1); 
                 % Apply first input to the system and get next state
-                dX{n+1}(:, i) = param.A_Ni{i}*x_Ni + param.Bi{i}*U{n}(:,i);
+                dX{n+1}(:, i) = param.A_Ni{i}*x_Ni + param.Bi{i}*dU{n}(:,i);
                 X{n+1}(:,i) = dX{n+1}(:,i) + param.Xref{i};
              end
         end  
@@ -173,26 +174,37 @@ function [X,U] = sim_global_DGU(x0, length_sim, K,param)
     
     Ad = param.global_sysd.A; Bd = param.global_sysd.B; 
     M = param.number_subsystem; % number of subsystems
-    Acl = Ad+Bd*K;
     X = cell(length_sim+1,1); % state at each timestep
     U = cell(length_sim,1); % control input at each timestep
     d = cell(length_sim,1); % duty cycle
     X{1} = vertcat(x0{:}); % global initial state, vector Mx1
     u_to_di = cell(1,M);
     xconst = cell(1,M); uconst = cell(1,M); ufwd = cell(1,M); 
-    for n=1:length_sim
-        for i =1:M
-            xconst{i} = [0;0;-param.Vr{i}];
-            ufwd{i} = [-param.Vr{i}; 0; 0];
-            uconst{i} = - param.Vr{i}/param.Vin{i}; 
-            u_to_di{i} = (param.R{i}*param.Il{i})/param.Vin{i}; % to convert to duty cycle
+    if param.name == "2_DGU"
+        for n=1:length_sim
+            for i =1:M
+                xconst{i} = [0;0;-param.Vr{i}];
+                ufwd{i} = [-param.Vr{i}; 0; 0];
+                uconst{i} = - param.Vr{i}/param.Vin{i}; 
+                u_to_di{i} = (param.R{i}*param.Il{i})/param.Vin{i}; % to convert to duty cycle
+            end
+            X{n} = X{n} + vertcat(xconst{:});
+            U{n} = K*X{n} + vertcat(uconst{:}) + K*vertcat(ufwd{:});
+            X{n+1} = Ad*X{n} + Bd*U{n};
+            d{n} = U{n} + vertcat(u_to_di{:});
+        end     
+        U = d;
+     elseif param.name == "DGU_delta"
+        dX = cell(length_sim+1,1); % state at each timestep
+        dU = cell(length_sim,1); % control input at each timestep
+        dX{1} = X{1} - vertcat(param.Xref{:});
+        for n=1:length_sim
+            dU{n} = K*dX{n};
+            U{n} = dU{n} + vertcat(param.Uref{:});
+            dX{n+1}= Ad*dX{n}+ Bd*dU{n};
+            X{n+1} = dX{n+1} + vertcat(param.Xref{:});
         end
-        X{n} = X{n} + vertcat(xconst{:});
-        U{n} = K*X{n} + vertcat(uconst{:}) + K*vertcat(ufwd{:});
-        X{n+1} = Ad*X{n} + Bd*U{n};
-        d{n} = U{n} + vertcat(u_to_di{:});
-    end     
-    U = d;
+    end
 end
 
 function [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
