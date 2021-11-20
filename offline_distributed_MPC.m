@@ -20,11 +20,11 @@ function [Pi, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, param, pass
             disp(Ki{i});
         end
         for i=1:M
-            neighbors = sort([i, successors(param.graph, i)]); 
+            neighbors = sort([i; successors(param.graph, i)]); 
             P_Ni{i} = blkdiag(Pi{neighbors}); 
             Gamma_Ni{i} = blkdiag(Gamma_i{neighbors});
             K_block = blkdiag(Ki{neighbors}); %block matrix of all neighbors K
-            K_Ni{i} = K_block(i,:); % extract only first row corresponding to subsystem i
+            K_Ni{i} = K_block(neighbors==i,:); % extract only row corresponding to subsystem i
         end
     else
        error("ERROR: chose if passivity is to be used or not"); 

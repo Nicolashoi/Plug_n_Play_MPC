@@ -227,7 +227,7 @@ function [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
                 error("Input to apply to controller is Nan at iteration %d",n);
             end
             for i=1:M
-                neighbors = [i, successors(param.graph, i)]; % get neighbors
+                neighbors = [i; successors(param.graph, i)]; % get neighbors
                 neighbors = sort(neighbors); % sorted neighbor list
                 % create neighbor state vector comprising the state of subsystem i
                 % and the state of it's neighbors (concatenated)

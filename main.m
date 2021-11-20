@@ -102,7 +102,7 @@ function [param, x0] = choose_system(system)
             param = param_DGU_delta;
             x0 = cell(1, param.number_subsystem);
             for i=1:param.number_subsystem
-                x0{i} = [50;0];
+                x0{i} = [50;5];
             end
         otherwise
             error("system not implemented yet")

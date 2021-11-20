@@ -38,7 +38,7 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, Pi, N, param)
     for i=1:M % loop over all subsystems
         m_Ni = size(param.A_Ni{i},2); % get size of set of Neighbors
         % obtain sorted list of neighbors of system i
-        neighbors = [i,successors(param.graph, i)];
+        neighbors = [i; successors(param.graph, i)];
         neighbors = sort(neighbors);
        
         for k = 1:N-1 % Planning Horizon Loop

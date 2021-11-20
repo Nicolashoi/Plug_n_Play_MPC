@@ -53,10 +53,25 @@ function param = param_DGU_delta
     sys_d = c2d(sys, Ts); % Exact discretization of the global system
   
     %% Parameters for offline algorithm 1
-    U{1} = [1 0 0 0; 0 1 0 0]; 
-    U{2} = [0 0 1 0; 0 0 0 1];
-    W{1} = eye(4); W{2} = eye(4);
-    
+    %% CHANGE THIS TO 6 SUBSYSTEMS -> MOVE TO MAT FILE ?
+    U = cell(1,nb_subsystems);
+    W = cell(1,nb_subsystems);
+    mi = size_subsystem;
+    N = nb_subsystems* mi;
+    state_i = eye(2);
+    graph = digraph(Agraph); % or digraph(Agraph)
+    for i = 1:nb_subsystems
+        U{i} = [zeros(mi,mi*(i-1)), state_i, zeros(mi,N-mi*i)];
+        out_neighbors = sort([i;successors(graph, i)]); % neighbor states of i
+        W{i} = zeros(nb_subsystems);
+        % put a 1 in diagonal of neighbor state
+        for j=1:length(out_neighbors)
+            W{i}(out_neighbors(j),out_neighbors(j)) = 1;
+        end
+        W{i}= kron(W{i}, state_i); % each subsystem has size mi
+        W{i}(all(W{i}==0,2),:)=[]; % remove all zero rows
+    end
+   
     %% constraints now in delta formulation
     Xref = cell(1,nb_subsystems);
     Uref = cell(1,nb_subsystems);
@@ -69,7 +84,7 @@ function param = param_DGU_delta
         Uref{i} = di_ref(i);
         Gx_i{i}= [eye(2); -eye(2)];
         Gu_i{i} = [1;-1];
-        fx_i{i} = [55; 10; -45; 0] + [-Xref{i}; Xref{i}];
+        fx_i{i} = [52; 10; -49; 0] + [-Xref{i}; Xref{i}];
         fu_i{i} = [1;0] + [-Uref{i}; Uref{i}];
     end 
    
@@ -78,7 +93,7 @@ function param = param_DGU_delta
     Gu = blkdiag(Gu_i{:});
     fu = [fu_i{:}];
     
-    graph = digraph(Agraph); % or digraph(Agraph)
+    
     %% put everything together
     param.Ts= Ts;
     param.Ai = Ai;
