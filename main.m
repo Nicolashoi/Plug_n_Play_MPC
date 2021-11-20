@@ -59,7 +59,7 @@ Q_Ni = {}; Ri = {};
      Q_Ni{i} =1*eye(m_Ni);
      Ri{i} = 1*eye(size(param.Bi{i},2));
  end
- use_passivity = true; 
+ use_passivity = false; 
  [P, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, param, ...
                                                   use_passivity);
 alpha = zeros(param.number_subsystem,1);
@@ -71,6 +71,23 @@ length_sim = 30;
 control_type = "MPC";
 [X,U] = simulate_system(@mpc_online, x0,length_sim, control_type, param,...
                          Q_Ni, Ri, P, Gamma_Ni, alpha);
+config = "DISTRIBUTED";
+plot_simulation(X,U, config, control_type, param, utils)
+
+%% TEST 3
+[param, x0] = choose_system(system);
+utils = utilityFunctions;
+Q_Ni = {}; Ri = {};
+ for i = 1:param.number_subsystem
+     m_Ni = size(param.W{i},1);
+     Q_Ni{i} =1*eye(m_Ni);
+     Ri{i} = 1*eye(size(param.Bi{i},2));
+ end
+ % send to online controller
+length_sim = 30;
+control_type = "MPC";
+[X,U] = simulate_system(@mpc_online_2, x0,length_sim, control_type, param,...
+                         Q_Ni, Ri, Pi, Gamma_Ni, alpha);
 config = "DISTRIBUTED";
 plot_simulation(X,U, config, control_type, param, utils)
 %% FUNCTIONS 

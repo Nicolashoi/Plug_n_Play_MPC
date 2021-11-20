@@ -49,6 +49,19 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
             elseif param.name == "2_DGU" || param.name == "DGU_delta"
                 [X,U] = sim_global_DGU(x0, length_sim,-Klqr,param);
             end
+            
+            
+        case "MPC_2"
+            for i= 1:M
+            [Kpass{i}, D{i}, Ppass{i}, Gamma_pass{i}] = controller_passivity(...
+                                             param.Ai{i}, param.Bi{i},...
+                                             param.Ci{i}, param.Fi{i}, ...
+                                             param.L_tilde, param.global_sysd.C);
+            disp("Passive controller Gain"); disp(Kpass{i});
+            end
+            [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
+                                      alpha, Q, R, Pi, Gamma_Ni);
+            
         otherwise
             error("Simulation not implemented");
        
@@ -208,7 +221,7 @@ function [X,U] = sim_global_DGU(x0, length_sim, K,param)
 end
 
 function [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
-                                          alpha, Q_Ni, Ri, Pi, Gamma_Ni)
+                                          alpha, Q_Ni, Ri, Pi, Gamma_Ni, K)
                                       
         M = param.number_subsystem; % number of subsystems
         dX = cell(length_sim+1,1); % state at each timestep
@@ -221,7 +234,11 @@ function [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
         clear mpc_online
         for n = 1:length_sim % loop over all subsystem
             % control input is of size nu x M
-            dU{n} = controller(dX{n}, alpha, Q_Ni, Ri, Pi, N, param); % get first control input
+            if isequal(functions(controller).function, 'mpc_online')
+                dU{n} = controller(dX{n}, alpha, Q_Ni, Ri, Pi, N, param); % get first control input
+            elseif isequal(functions(controller).function, 'mpc_online_2')
+                dU{n} = controller(dX{n}, K, Q_Ni, Ri, Pi, N, param); 
+            end
             U{n} = dU{n} + horzcat(param.Uref{:});
             if isnan(dU{n})
                 error("Input to apply to controller is Nan at iteration %d",n);

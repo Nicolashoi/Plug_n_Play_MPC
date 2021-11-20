@@ -19,7 +19,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
     U = sdpvar(repmat(nu,1,N-1), repmat(M,1,N-1),'full');
     Ue = sdpvar(nu, M,'full');
     % State cell array of size N (timestep), each cell is an array of size nx*M
-    X = sdpvar(repmat(nx,1,N),repmat(M,1,N),'full');
+    X = sdpvar(repmat(nx,1,N),repmat(M,1,N),'full'); % contains state of each subsystem i
     Xe = sdpvar(nx,M,'full');
     X_Ni = cell(M,N-1); % cell array for neighbor states
     X_eNi = cell(M,1); 
@@ -27,18 +27,18 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
     alpha = sdpvar(M,1,'full');
     ci = sdpvar(M,1, 'full');
     di = sdpvar(M,1, 'full');
-    lambda = sdpvar(M,1, 'full'); % lambda_i
+    lambda = cell(M,1);%sdpvar(M,1, 'full'); % lambda_i
     objective = 0;
     constraints = [];
-    
+    S = cell(M,1);
     %% Constraints: Outer loop over subsystems, inner loop over Horizon
     for i=1:M % loop over all subsystems
+        S{i} = eye(size(param.Ai{i}),1);
         m_Ni = size(param.A_Ni{i},2); % get size of set of Neighbors
         % obtain sorted list of neighbors of system i
-        neighbors = [i,successors(param.graph, i)];
-        neighbors = sort(neighbors);
+        neighbors = sort([i;successors(param.graph, i)]);
         X_eNi{i} = sdpvar(m_Ni,1,'full'); % neighbor equilibrium state i
-        lambda{i} = sdpvar(1,m_Ni, 'full');
+        lambda{i} = sdpvar(m_Ni,1, 'full');
         % constraint for X_eNi =  concat of neighbor x_ei
         constraints = [constraints, X_eNi{i} == ...
                                     reshape(Xe(:,neighbors),[],1)];
@@ -49,8 +49,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
        
         for k = 1:N-1 % Planning Horizon Loop
             %% Neighbor States for each ith sytem at the kth horizon iteration
-            X_Ni{i,k} = sdpvar(m_Ni,1,'full'); % neighbor state i
-            %X_eNi{i,k} = sdpvar(m_Ni,1,'full'); % equilibrium neighbor state
+            X_Ni{i,k} = sdpvar(m_Ni,1,'full'); % neighbor set of state i
             % add a constraint for the neighbor state i to be equal to the
             % concatenated subsystem neighbor state vectors
             constraints = [constraints, X_Ni{i,k} == ...
@@ -72,9 +71,9 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
                              
         end
         % Terminal cost
-        objective = objective + ... %TO DO: define SI and xr in param
+        objective = objective + ... 
                     (X{end}(:,i)-Xe(:,i))'*Pi{i}*(X{end}(:,i)-Xe(:,i))+...
-                    (Xe(:,i) - param.xr{i})'*Si{i}*(Xe(:,i) - param.xr{i});
+                    (Xe(:,i) - param.Xref{i})'*S{i}*(Xe(:,i) - param.Xref{i});
         % Terminal Set condition
         constraints = [constraints, (X{end}(:,i)-ci(i))'*Pi{i}*(X{end}(:,i)-ci(i))...
                                     <= alpha(i)^2];                             
@@ -84,7 +83,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
     
     %% Create optimizer object 
     ops = sdpsettings('verbose',1); %options
-    parameters_in = {X0, alpha};
+    parameters_in = {X0};
     %solutions_out = {[U{1}], [X{:}], [X_Ni{:}]}; % general form 
     solutions_out = U{1}; % get U0 for each subsystem, size nu x M
     mpc_optimizer = optimizer(constraints,objective,ops,parameters_in,solutions_out);
