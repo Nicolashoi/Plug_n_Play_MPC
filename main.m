@@ -85,9 +85,9 @@ Q_Ni = {}; Ri = {};
  end
  % send to online controller
 length_sim = 30;
-control_type = "MPC";
+control_type = "MPC_2";
 [X,U] = simulate_system(@mpc_online_2, x0,length_sim, control_type, param,...
-                         Q_Ni, Ri, Pi, Gamma_Ni, alpha);
+                         Q_Ni, Ri);
 config = "DISTRIBUTED";
 plot_simulation(X,U, config, control_type, param, utils)
 %% FUNCTIONS 

@@ -52,15 +52,23 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
             
             
         case "MPC_2"
+            M = param.number_subsystem;
+            Kpass = cell(1,M); Ppass = cell(1,M); K_Ni = cell(1,M); 
             for i= 1:M
-            [Kpass{i}, D{i}, Ppass{i}, Gamma_pass{i}] = controller_passivity(...
+            [Kpass{i}, ~, Ppass{i}, ~] = controller_passivity(...
                                              param.Ai{i}, param.Bi{i},...
                                              param.Ci{i}, param.Fi{i}, ...
                                              param.L_tilde, param.global_sysd.C);
             disp("Passive controller Gain"); disp(Kpass{i});
             end
-            [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
-                                      alpha, Q, R, Pi, Gamma_Ni);
+            for i=1:M
+                neighbors = sort([i; successors(param.graph, i)]); 
+                K_block = blkdiag(Kpass{neighbors}); %block matrix of all neighbors K
+                K_Ni{i} = K_block(neighbors==i,:); % extract only row corresponding to subsystem i
+            end
+            [X,U] = mpc_DGU_tracking(controller, x0, length_sim, param,...
+                                          K_Ni, Q, R, Ppass);
+   
             
         otherwise
             error("Simulation not implemented");
@@ -221,7 +229,7 @@ function [X,U] = sim_global_DGU(x0, length_sim, K,param)
 end
 
 function [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
-                                          alpha, Q_Ni, Ri, Pi, Gamma_Ni, K)
+                                          alpha, Q_Ni, Ri, Pi, Gamma_Ni)
                                       
         M = param.number_subsystem; % number of subsystems
         dX = cell(length_sim+1,1); % state at each timestep
@@ -234,11 +242,7 @@ function [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
         clear mpc_online
         for n = 1:length_sim % loop over all subsystem
             % control input is of size nu x M
-            if isequal(functions(controller).function, 'mpc_online')
-                dU{n} = controller(dX{n}, alpha, Q_Ni, Ri, Pi, N, param); % get first control input
-            elseif isequal(functions(controller).function, 'mpc_online_2')
-                dU{n} = controller(dX{n}, K, Q_Ni, Ri, Pi, N, param); 
-            end
+            dU{n} = controller(dX{n}, alpha, Q_Ni, Ri, Pi, N, param); % get first control input
             U{n} = dU{n} + horzcat(param.Uref{:});
             if isnan(dU{n})
                 error("Input to apply to controller is Nan at iteration %d",n);
@@ -254,6 +258,34 @@ function [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
                 X{n+1}(:,i) = dX{n+1}(:,i) + param.Xref{i};
                 % update variable constraining terminal set of each subsystem
                 alpha(i) = alpha(i) + x_Ni'*Gamma_Ni{i}*x_Ni;
+            end
+        end                                                                             
+end
+
+function [X,U] = mpc_DGU_tracking(controller, x0, length_sim, param,...
+                                          K, Q_Ni, Ri, Pi)
+                                      
+        M = param.number_subsystem; % number of subsystems
+        X = cell(length_sim+1,1); % state at each timestep
+        U = cell(length_sim,1); % control input at each timestep
+        X{1} = horzcat(x0{:}); % initial state columns are subsystem i    
+   
+        N = 10; % Horizon
+        clear mpc_online_2
+        for n = 1:length_sim % loop over all subsystem
+            % control input is of size nu x M 
+            U{n} = controller(X{n}, K, Q_Ni, Ri, Pi, N, param); % get first control input
+            if isnan(U{n})
+                error("Input to apply to controller is Nan at iteration %d",n);
+            end
+            for i=1:M
+                neighbors = [i; successors(param.graph, i)]; % get neighbors
+                neighbors = sort(neighbors); % sorted neighbor list
+                % create neighbor state vector comprising the state of subsystem i
+                % and the state of it's neighbors (concatenated)
+                x_Ni = reshape(X{n}(:,neighbors),[],1); 
+                % Apply first input to the system and get next state
+                X{n+1}(:, i) = param.A_Ni{i}*x_Ni + param.Bi{i}*U{n}(:,i);
             end
         end                                                                             
 end

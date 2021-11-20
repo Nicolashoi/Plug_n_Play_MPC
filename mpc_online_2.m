@@ -4,7 +4,7 @@ function u0 = mpc_online_2(x0, Ki, Q_Ni, Ri, Pi, N, param)
     if isempty(mpc_optimizer)
         mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param);
     end
-    [u0, ~, ~, ~, ~, feasibility]= mpc_optimizer(x0, alpha);
+    [u0, ~, ~, ~, ~, feasibility]= mpc_optimizer(x0);
     disp(feasibility.infostr);
     %u0 = mpc_optimizer(x0, alpha);
 end
@@ -33,7 +33,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
     S = cell(M,1);
     %% Constraints: Outer loop over subsystems, inner loop over Horizon
     for i=1:M % loop over all subsystems
-        S{i} = eye(size(param.Ai{i}),1);
+        S{i} = eye(size(param.Ai{i},1));
         m_Ni = size(param.A_Ni{i},2); % get size of set of Neighbors
         % obtain sorted list of neighbors of system i
         neighbors = sort([i;successors(param.graph, i)]);
@@ -43,7 +43,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
         constraints = [constraints, X_eNi{i} == ...
                                     reshape(Xe(:,neighbors),[],1)];
         %% Equilibrium constraints
-        constraints = [constraints, Xe(:,i) == param.Ai{i}*X_eNi{i} + ...
+        constraints = [constraints, Xe(:,i) == param.A_Ni{i}*X_eNi{i} + ...
                                                 param.Bi{i}*Ue(:,i)];
         constraints = [constraints, Ue(:,i) == Ki{i}*X_eNi{i} + di(i)];  
        
