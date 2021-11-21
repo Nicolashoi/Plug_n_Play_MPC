@@ -25,9 +25,13 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
     X_eNi = cell(M,1); 
     X0 = sdpvar(nx,M,'full'); % state as rows and system number as column
     alpha = sdpvar(M,1,'full');
-    ci = sdpvar(M,1, 'full');
-    di = sdpvar(M,1, 'full');
+    ci = sdpvar(nx, M, 'full');
+    di = sdpvar(nu, M, 'full');
     lambda = cell(M,1);%sdpvar(M,1, 'full'); % lambda_i
+    c_Ni = cell(1,M);
+    c_Ni(:) = {0}; % initialize all cells to zero
+    alpha_Ni = cell(1,M);
+    alpha_Ni(:) = {0};
     objective = 0;
     constraints = [];
     S = cell(M,1);
@@ -45,32 +49,89 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
         %% Equilibrium constraints
         constraints = [constraints, Xe(:,i) == param.A_Ni{i}*X_eNi{i} + ...
                                                 param.Bi{i}*Ue(:,i)];
-        constraints = [constraints, Ue(:,i) == Ki{i}*X_eNi{i} + di(i)];  
+        constraints = [constraints, Ue(:,i) == Ki{i}*X_eNi{i} + di(:,i)];  
+        
+        %%
+        sumLambdaP_ij = 0;
+        sumLambda_ij = 0;
+        for j = 1:length(neighbors)
+%             constraints = [constraints,  alpha_Ni{i} == ...
+%             alpha_Ni{i} + alpha(neighbors(j))*param.Wij{i}{neighbors(j)}*... 
+%                             (param.Wij{i}{neighbors(j)})'];
+%             constraints = [constraints, c_Ni{i} == ...  
+%             c_Ni{i} + param.Wij{i}{neighbors(j)}'*ci(:,neighbors(j))];
+             alpha_Ni{i} = alpha_Ni{i} + ...
+                            alpha(neighbors(j))*(param.Wij{i}{neighbors(j)})'*... 
+                            (param.Wij{i}{neighbors(j)});
+             c_Ni{i} = c_Ni{i} + param.Wij{i}{neighbors(j)}'*ci(:,neighbors(j));
+             Pij = (param.Wij{i}{neighbors(j)})'*Pi{neighbors(j)}...
+                    *(param.Wij{i}{neighbors(j)});
+             sumLambdaP_ij = sumLambdaP_ij + ...
+                             lambda{i}(j)*Pij;
+             sumLambda_ij = sumLambda_ij + lambda{i}(j);                   
+        end
+        
+        for k=1:size(param.Gx_Ni{i},1) 
+            sum_GxNorm2 = 0;
+            for j=1:length(neighbors)
+                sum_GxNorm2 = sum_GxNorm2 + norm(param.Gx_Ni{i}(k,:)*...
+                             (param.Wij{i}{neighbors(j)})'*...
+                              Pi{neighbors(j)}^(-1/2),2) * alpha(neighbors(j));
+                
+            end
+            constraints = [constraints, param.Gx_Ni{i}(k,:)*c_Ni{i} + sum_GxNorm2 ...
+                            <= param.fx_Ni{i}(k)];    
+        end
+        
+        for k=1:size(param.Gu_i{i},1) 
+            sum_GuNorm2 = 0;
+            for j=1:length(neighbors)
+                sum_GuNorm2 = sum_GuNorm2 + norm(param.Gu_i{i}(k,:)*Ki{i}*...
+                             (param.Wij{i}{neighbors(j)})'*...
+                              Pi{neighbors(j)}^(-1/2),2) * alpha(neighbors(j));
+                
+            end
+            constraints = [constraints, param.Gu_i{i}(k,:)*Ki{i}*c_Ni{i} + ...
+                           param.Gu_i{i}(k,:)*di(:,i) + sum_GxNorm2...
+                           <= param.fu_i{i}(k)];    
+        end
+        
+        LMI_1 = [inv(Pi{i})*alpha(i), (param.A_Ni{i}+param.Bi{i}*Ki{i})*alpha_Ni{i},...
+               (param.A_Ni{i}+param.Bi{i}*Ki{i})*c_Ni{i} + param.Bi{i}*di(:,i) - ci(:,i)];
+        LMI_2 = [((param.A_Ni{i}+param.Bi{i}*Ki{i})*alpha_Ni{i})', sumLambdaP_ij,...
+                zeros(size(sumLambdaP_ij,1), size(ci(:,i),2))];
+        LMI_3 = [((param.A_Ni{i}+param.Bi{i}*Ki{i})*c_Ni{i} + param.Bi{i}*di(:,i) - ci(:,i))',...
+                    zeros(size(alpha(i),1),size(sumLambdaP_ij,2)) , alpha(i) - sumLambda_ij];
+                    
+              
+        LMI = [LMI_1; LMI_2; LMI_3];
+        constraints = [constraints, LMI];    
+        
        
-        for k = 1:N-1 % Planning Horizon Loop
+        for n = 1:N-1 % Planning Horizon Loop
             %% Neighbor States for each ith sytem at the kth horizon iteration
-            X_Ni{i,k} = sdpvar(m_Ni,1,'full'); % neighbor set of state i
+            X_Ni{i,n} = sdpvar(m_Ni,1,'full'); % neighbor set of state i
             % add a constraint for the neighbor state i to be equal to the
             % concatenated subsystem neighbor state vectors
-            constraints = [constraints, X_Ni{i,k} == ...
-                                        reshape(X{k}(:,neighbors),[],1)];
+            constraints = [constraints, X_Ni{i,n} == ...
+                                        reshape(X{n}(:,neighbors),[],1)];
            
             %% Distributed Dynamics
-            constraints = [constraints, X{k+1}(:,i) == param.A_Ni{i}*X_Ni{i,k}+...
-                                                       param.Bi{i}*U{k}(:,i)];
+            constraints = [constraints, X{n+1}(:,i) == param.A_Ni{i}*X_Ni{i,n}+...
+                                                       param.Bi{i}*U{n}(:,i)];
             %% State and input constraints
-            constraints = [constraints, param.Gx_i{i} * X{k}(:,i)...
-                                      <= param.fx_i{i}];
-            constraints = [constraints, param.Gu_i{i} * U{k}(:,i)...
+            constraints = [constraints, param.Gx_Ni{i} * X_Ni{i,n}...
+                                      <= param.fx_Ni{i}];
+            constraints = [constraints, param.Gu_i{i} * U{n}(:,i)...
                                        <= param.fu_i{i}];
             %% Objective
             % sum of local functions l(xi,uf) %
             objective = objective + ...
-                        (X_Ni{i,k}-X_eNi{i})'*Q_Ni{i}*(X_Ni{i,k}-X_eNi{i})+...
-                        (U{k}(:,i)-Ue(:,i))'*Ri{i}*(U{k}(:,i)-Ue(:,i));  
+                        (X_Ni{i,n}-X_eNi{i})'*Q_Ni{i}*(X_Ni{i,n}-X_eNi{i})+...
+                        (U{n}(:,i)-Ue(:,i))'*Ri{i}*(U{n}(:,i)-Ue(:,i));  
                              
         end
-        % Terminal cost
+         % Terminal cost
         objective = objective + ... 
                     (X{end}(:,i)-Xe(:,i))'*Pi{i}*(X{end}(:,i)-Xe(:,i))+...
                     (Xe(:,i) - param.Xref{i})'*S{i}*(Xe(:,i) - param.Xref{i});
@@ -82,7 +143,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
     constraints = [constraints, X{1} == X0];
     
     %% Create optimizer object 
-    ops = sdpsettings('verbose',1); %options
+    ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
     parameters_in = {X0};
     %solutions_out = {[U{1}], [X{:}], [X_Ni{:}]}; % general form 
     solutions_out = U{1}; % get U0 for each subsystem, size nu x M

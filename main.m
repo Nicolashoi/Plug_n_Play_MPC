@@ -11,11 +11,12 @@ addpath(genpath(cd));
 %% Choose SYSTEM TO USE
 % 1: coupled oscillator with spring only, no dampers
 % 2: coupled damped oscillator, spring + oscillators
-% 3: DGU units not well implemented yet
+% 3: 2-DGU units with integrator state
 % 4: DGU units in delta form
+% 5: DGU units (normal form also without integrator)
 clear
 close
-system = 4;
+system = 3;
 
 %% TEST 1: PASSIVITY VS LQR CONTROLLER
 close all
@@ -75,6 +76,7 @@ config = "DISTRIBUTED";
 plot_simulation(X,U, config, control_type, param, utils)
 
 %% TEST 3
+system = 5;
 [param, x0] = choose_system(system);
 utils = utilityFunctions;
 Q_Ni = {}; Ri = {};
@@ -95,7 +97,7 @@ plot_simulation(X,U, config, control_type, param, utils)
 function plot_simulation(X,U, config, control_type, param, utils)
     if param.name == "COUPLED_OSCI"
         utils.plot_states_coupled_osci(X,U,config, control_type, param);
-    elseif param.name == "2_DGU" || param.name == "DGU_delta" 
+    elseif param.name == "2_DGU" || param.name == "DGU_delta" || param.name == "DGU"
         utils.plot_DGU_system(X,U, config, control_type, param);
     end
 end
@@ -117,6 +119,12 @@ function [param, x0] = choose_system(system)
             x0{2} = [49.9; 0 ;0];
         case 4
             param = param_DGU_delta;
+            x0 = cell(1, param.number_subsystem);
+            for i=1:param.number_subsystem
+                x0{i} = [50;5];
+            end
+        case 5
+            param = param_DGU;
             x0 = cell(1, param.number_subsystem);
             for i=1:param.number_subsystem
                 x0{i} = [50;5];
