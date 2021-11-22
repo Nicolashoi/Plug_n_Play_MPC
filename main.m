@@ -25,7 +25,7 @@ close all
 Ad = param.global_sysd.A; Bd = param.global_sysd.B; 
 Cd = param.global_sysd.C;
 
-length_sim = 50;
+length_sim = 30;
 utils = utilityFunctions;
 % USING PASSIVITY (DISTRIBUTED CONTROL)
 control_type = "PASSIVITY";
@@ -45,8 +45,8 @@ config = "GENERAL";
                         param,Q,R);
 LQR_cost = vertcat(x0{:})'*Pinf*vertcat(x0{:});
 sprintf("cost of lqr controller using closed form solution %d", LQR_cost)
-sprintf("cost of lqr finite using function %d",...
-        utils.compute_QR_cost(X,U,Q,R, config))
+% sprintf("cost of lqr finite using function %d",...
+%         utils.compute_QR_cost(X,U,Q,R, config))
 plot_simulation(X,U, config, control_type, param, utils)
  
  %% TEST 2; Offline Distributed synthesis with or without passivity
@@ -60,7 +60,7 @@ Q_Ni = {}; Ri = {};
      Q_Ni{i} =1*eye(m_Ni);
      Ri{i} = 1*eye(size(param.Bi{i},2));
  end
- use_passivity = false; 
+ use_passivity = true; 
  [P, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, param, ...
                                                   use_passivity);
 alpha = zeros(param.number_subsystem,1);
@@ -86,7 +86,7 @@ Q_Ni = {}; Ri = {};
      Ri{i} = 1*eye(size(param.Bi{i},2));
  end
  % send to online controller
-length_sim = 50;
+length_sim = 100;
 control_type = "MPC_2";
 [X,U] = simulate_system(@mpc_online_2, x0,length_sim, control_type, param,...
                          Q_Ni, Ri);

@@ -15,7 +15,9 @@ function param = param_DGU
     addpath(genpath(cd));
     load('system/DGU_electrical_param.mat')
     % references
-    Vr = linspace(49.95, 50.05, 6);
+    Vr = linspace(49.95, 50.2, 6);
+    %Vr(6) = 50.2;
+    %Vr = 50*ones(1,6);
     Il = linspace(2.5, 7.5, 6);
     %% Subystem dynamics
     Ts = 1e-5; % sampling time
@@ -38,7 +40,7 @@ function param = param_DGU
     % A_Ni matrices in discrete time 
     A_Ni = utils.change_system_representation(Ai,Fi,Ci,Agraph);
     % Compute references
-   %[di_ref, Iti_ref] = utils.compute_ref(nb_subsystems,Agraph, Vr, Il, Rij, R, Vin);
+   [di_ref, Iti_ref] = utils.compute_ref(nb_subsystems,Agraph, Vr, Il, Rij, R, Vin);
     %% Laplacian
     %L_tilde1 = kron(Agraph, eye(size(Cc{1},1)));
     L_tilde = L; % laplacian
@@ -85,11 +87,10 @@ function param = param_DGU
     fx_i = cell(1,nb_subsystems);
     fu_i = cell(1,nb_subsystems);
     for i= 1:nb_subsystems
-        Xref{i} = [Vr(i); 0.5];
-        %Uref{i} = di_ref(i);
+        Xref{i} = [Vr(i); Iti_ref(i)-Il(i)];
         Gx_i{i}= [eye(2); -eye(2)];
         Gu_i{i} = [1;-1];
-        fx_i{i} = [52; 10; -49; 0];
+        fx_i{i} = [52; 10-Il(i); -49; 0+Il(i)];
         fu_i{i} = [1;0];
     end 
     for i= 1:nb_subsystems

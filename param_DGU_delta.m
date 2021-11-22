@@ -9,6 +9,7 @@ function param = param_DGU_delta
     load('system/DGU_electrical_param.mat')
     % references
     Vr = linspace(49.95, 50.05, 6);
+    Vr(6) = 50.5;
     Il = linspace(2.5, 7.5, 6);
     %% Subystem dynamics
     Ts = 1e-5; % sampling time
