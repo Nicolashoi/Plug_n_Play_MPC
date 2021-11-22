@@ -286,6 +286,7 @@ function [X,U] = mpc_DGU_tracking(controller, x0, length_sim, param,...
                 x_Ni = reshape(X{n}(:,neighbors),[],1); 
                 % Apply first input to the system and get next state
                 X{n+1}(:, i) = param.A_Ni{i}*x_Ni + param.Bi{i}*U{n}(:,i);
+                X{n}(2,i) = X{n}(2,i) + param.Il(i);
             end
         end                                                                             
 end

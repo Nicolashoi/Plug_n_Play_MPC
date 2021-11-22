@@ -6,7 +6,7 @@ function u0 = mpc_online_2(x0, Ki, Q_Ni, Ri, Pi, N, param)
     end
     [u0, ~, ~, ~, ~, feasibility]= mpc_optimizer(x0);
     disp(feasibility.infostr);
-    %u0 = mpc_optimizer(x0, alpha);
+     %sol = mpc_optimizer(x0);
 end
  
 function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
@@ -138,9 +138,11 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
         objective = objective + ... 
                     (X{end}(:,i)-Xe(:,i))'*Pi{i}*(X{end}(:,i)-Xe(:,i))+...
                     (Xe(:,i) - param.Xref{i})'*S{i}*(Xe(:,i) - param.Xref{i});
+                        
         %%  Terminal Set condition
         constraints = [constraints, (X{end}(:,i)-ci(i))'*Pi{i}*(X{end}(:,i)-ci(i))...
-                                    <= alpha(i)^2];                             
+                                    <= alpha(i)^2];      
+
     end    
     % parameter for initial condition
     constraints = [constraints, X{1} == X0];
@@ -148,7 +150,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
     %% Create optimizer object 
     ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
     parameters_in = {X0};
-    %solutions_out = {[U{1}], [X{:}], [X_Ni{:}]}; % general form 
-    solutions_out = U{1}; % get U0 for each subsystem, size nu x M
+    %solutions_out = {[U{:}], [X_eNi{1}], [X_eNi{2}], [X_eNi{3}], di, Ue}; % general form 
+     solutions_out = U{1}; % get U0 for each subsystem, size nu x M
     mpc_optimizer = optimizer(constraints,objective,ops,parameters_in,solutions_out);
 end

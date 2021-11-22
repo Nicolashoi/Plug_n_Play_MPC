@@ -12,6 +12,7 @@
 
 function param = param_DGU
     %% Converter Parameters
+    addpath(genpath(cd));
     load('system/DGU_electrical_param.mat')
     % references
     Vr = linspace(49.95, 50.05, 6);
@@ -37,7 +38,7 @@ function param = param_DGU
     % A_Ni matrices in discrete time 
     A_Ni = utils.change_system_representation(Ai,Fi,Ci,Agraph);
     % Compute references
-   [di_ref, Iti_ref] = utils.compute_ref(nb_subsystems,Agraph, Vr, Il, Rij, R, Vin);
+   %[di_ref, Iti_ref] = utils.compute_ref(nb_subsystems,Agraph, Vr, Il, Rij, R, Vin);
     %% Laplacian
     %L_tilde1 = kron(Agraph, eye(size(Cc{1},1)));
     L_tilde = L; % laplacian
@@ -53,7 +54,6 @@ function param = param_DGU
     %% Parameters for offline algorithm 1
     U = cell(1,nb_subsystems);
     W = cell(1,nb_subsystems);
-    %Wij = cell(1,nb_subsystems);
     mi = size_subsystem;
     N = nb_subsystems* mi;
     state_i = eye(2);
@@ -77,7 +77,7 @@ function param = param_DGU
    
     %% constraints 
     Xref = cell(1,nb_subsystems);
-    Uref = cell(1,nb_subsystems);
+    %Uref = cell(1,nb_subsystems);
     Gx_i = cell(1,nb_subsystems);
     Gx_Ni = cell(1, nb_subsystems);
     fx_Ni = cell(1, nb_subsystems);
@@ -85,8 +85,8 @@ function param = param_DGU
     fx_i = cell(1,nb_subsystems);
     fu_i = cell(1,nb_subsystems);
     for i= 1:nb_subsystems
-        Xref{i} = [Vr(i); Iti_ref(i)];
-        Uref{i} = di_ref(i);
+        Xref{i} = [Vr(i); 0.5];
+        %Uref{i} = di_ref(i);
         Gx_i{i}= [eye(2); -eye(2)];
         Gu_i{i} = [1;-1];
         fx_i{i} = [52; 10; -49; 0];
@@ -135,5 +135,5 @@ function param = param_DGU
     param.A_Ni = A_Ni;
     param.graph = graph;
     param.Xref = Xref;
-    param.Uref = Uref;
+    %param.Uref = Uref;
 end

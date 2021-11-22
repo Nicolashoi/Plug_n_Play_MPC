@@ -16,7 +16,7 @@ addpath(genpath(cd));
 % 5: DGU units (normal form also without integrator)
 clear
 close
-system = 5;
+system = 4;
 
 %% TEST 1: PASSIVITY VS LQR CONTROLLER
 close all
@@ -127,7 +127,7 @@ function [param, x0] = choose_system(system)
             param = param_DGU;
             x0 = cell(1, param.number_subsystem);
             for i=1:param.number_subsystem
-                x0{i} = [50;5];
+                x0{i} = [50;0]; % second state is Ii - Il
             end
         otherwise
             error("system not implemented yet")
