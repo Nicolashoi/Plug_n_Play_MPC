@@ -36,13 +36,13 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, Pi, N, param)
     
     %% Constraints: Outer loop over subsystems, inner loop over Horizon
     for i=1:M % loop over all subsystems
-        m_Ni = size(param.A_Ni{i},2); % get size of set of Neighbors
+        n_Ni = size(param.A_Ni{i},2); % get size of set of Neighbors
         % obtain sorted list of neighbors of system i
         neighbors = [i; successors(param.graph, i)];
         neighbors = sort(neighbors);
        
         for k = 1:N-1 % Planning Horizon Loop
-            X_Ni{i,k} = sdpvar(m_Ni,1,'full'); % neighbor state i
+            X_Ni{i,k} = sdpvar(n_Ni,1,'full'); % neighbor state i
             % add a constraint for the neighbor state i to be equal to the
             % concatenated subsystem neighbor state vectors
             constraints = [constraints, X_Ni{i,k} == ...

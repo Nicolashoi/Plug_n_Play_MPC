@@ -56,12 +56,12 @@ function param = param_DGU
     %% Parameters for offline algorithm 1
     U = cell(1,nb_subsystems);
     W = cell(1,nb_subsystems);
-    mi = size_subsystem;
-    N = nb_subsystems* mi;
+    ni = size_subsystem;
+    N = nb_subsystems* ni;
     state_i = eye(2);
     graph = digraph(Agraph); % or digraph(Agraph)
     for i = 1:nb_subsystems
-        U{i} = [zeros(mi,mi*(i-1)), state_i, zeros(mi,N-mi*i)];
+        U{i} = [zeros(ni,ni*(i-1)), state_i, zeros(ni,N-ni*i)];
         out_neighbors = sort([i;successors(graph, i)]); % neighbor states of i
         W{i} = zeros(nb_subsystems);
         % put a 1 in diagonal of neighbor state
