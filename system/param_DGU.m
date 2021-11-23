@@ -70,10 +70,18 @@ function param = param_DGU
         end
         W{i}= kron(W{i}, state_i); % each subsystem has size mi
         W{i}(all(W{i}==0,2),:)=[]; % remove all zero rows
+%         for j = 1:length(out_neighbors)
+%             square_mat = W{i}*W{i}';
+%             idx = [mi*j-1:mi*j-1+(mi-1)]; %index to extract mi rows for each state
+%             Wij{i}{out_neighbors(j)} = square_mat(idx,:); % obtain xi from XNi
+%         end
+    end
+    % Create Wij: extract state j from neighbor set of state i (j belongs to
+    % xNi)
+    for i = 1:nb_subsystems
+        out_neighbors = sort([i;successors(graph, i)]); % neighbor states of i
         for j = 1:length(out_neighbors)
-            square_mat = W{i}*W{i}';
-            idx = [mi*j-1:mi*j-1+(mi-1)]; %index to extract mi rows for each state
-            Wij{i}{out_neighbors(j)} = square_mat(idx,:); % obtain xi from XNi
+             Wij{i}{out_neighbors(j)} = U{out_neighbors(j)}*W{i}';
         end
     end
    

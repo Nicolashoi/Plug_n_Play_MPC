@@ -30,6 +30,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
     ci = sdpvar(nx, M, 'full');
     di = sdpvar(nu, M, 'full');
     lambda = cell(M,1);
+    bi = sdpvar(nx,M, 'full'); % for diagonal dominance
     % other variables
     c_Ni = cell(1,M);
     c_Ni(:) = {0}; % initialize all cells to zero
@@ -41,11 +42,12 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
     %% Constraints: Outer loop over subsystems, inner loop over Horizon
     for i=1:M % loop over all subsystems
         S{i} = 1000*eye(size(param.Ai{i},1));
-        m_Ni = size(param.A_Ni{i},2); % get size of set of Neighbors
+        ni = size(param.A_Ni{i},1); 
+        n_Ni = size(param.A_Ni{i},2); % get size of set of Neighbors
         % obtain sorted list of neighbors of system i
         neighbors = sort([i;successors(param.graph, i)]);
-        X_eNi{i} = sdpvar(m_Ni,1,'full'); % neighbor equilibrium state i
-        lambda{i} = sdpvar(m_Ni,1, 'full');
+        X_eNi{i} = sdpvar(n_Ni,1,'full'); % neighbor equilibrium state i
+        lambda{i} = sdpvar(n_Ni,1, 'full');
         % constraint for X_eNi =  concat of neighbor x_ei
         constraints = [constraints, X_eNi{i} == ...
                                     reshape(Xe(:,neighbors),[],1)];
@@ -59,6 +61,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
         % Predictive Control for Reference Tracking
         sumLambdaP_ij = 0;
         sumLambda_ij = 0;
+        AbsSumLambdaP_ij = 0;
         % define alpha_Ni, c_Ni and Pij
         for j = 1:length(neighbors)
 %             constraints = [constraints,  alpha_Ni{i} == ...
@@ -74,6 +77,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
                     *(param.Wij{i}{neighbors(j)});
              sumLambdaP_ij = sumLambdaP_ij + ...
                              lambda{i}(j)*Pij;
+             AbsSumLambdaP_ij = AbsSumLambdaP_ij + lambda{i}(j)*abs(Pij);
              sumLambda_ij = sumLambda_ij + lambda{i}(j);                   
         end
         %% Equation 10
@@ -85,7 +89,24 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
                     zeros(size(alpha(i),1),size(sumLambdaP_ij,2)) , alpha(i) - sumLambda_ij];
                  
         LMI = [LMI_1; LMI_2; LMI_3];
-        constraints = [constraints, LMI>=0];    
+        %constraints = [constraints, LMI>=0];    
+        
+        %% Equation 14: Approx of LMI with diagonal dominance
+        PiInv = inv(Pi{i});
+        constraints = [constraints, (param.A_Ni{i}+param.Bi{i}*Ki{i})...
+                       *c_Ni{i} + param.Bi{i}*di(:,i) - ci(:,i) == bi(:,i)];
+        constraints = [constraints, alpha(i)-sumLambda_ij >= sum(bi(:,i))];    
+        for k= 1:ni
+            nondiag1 = sum(abs(PiInv(k,:))*alpha(i))- abs(PiInv(k,k))*alpha(i)+...
+                       sum(abs(param.A_Ni{i}(k,:)+ param.Bi{i}(k)*Ki{i}(:))*alpha_Ni{i})...
+                       + bi(k,i);
+            constraints = [constraints, PiInv(k,k)*alpha(i) >= nondiag1];       
+        end
+        for k=1:n_Ni
+            nondiag2 = sum(AbsSumLambdaP_ij(k,:)) - AbsSumLambdaP_ij(k,k) + ...
+                       sum(abs(param.A_Ni{i}(:,k)+ param.Bi{i}(:)*Ki{i}(k))*alpha(i));
+            constraints = [constraints, sumLambdaP_ij(k,k) >= nondiag2];
+        end
         %% Equation 11
         for k=1:size(param.Gx_Ni{i},1) 
             sum_GxNorm2 = 0;
@@ -115,7 +136,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
         %% Planning Horizon Loop
         for n = 1:N-1 
             % Neighbor States for each ith sytem at the kth horizon iteration
-            X_Ni{i,n} = sdpvar(m_Ni,1,'full'); % neighbor set of state i
+            X_Ni{i,n} = sdpvar(n_Ni,1,'full'); % neighbor set of state i
             % add a constraint for the neighbor state i to be equal to the
             % concatenated subsystem neighbor state vectors
             constraints = [constraints, X_Ni{i,n} == ...

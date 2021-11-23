@@ -86,7 +86,7 @@ Q_Ni = {}; Ri = {};
      Ri{i} = 1*eye(size(param.Bi{i},2));
  end
  % send to online controller
-length_sim = 100;
+length_sim = 50;
 control_type = "MPC_2";
 [X,U] = simulate_system(@mpc_online_2, x0,length_sim, control_type, param,...
                          Q_Ni, Ri);
