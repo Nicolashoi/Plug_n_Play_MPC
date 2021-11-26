@@ -5,7 +5,7 @@ function u0 = mpc_online_2(x0, Ki, Q_Ni, Ri, Pi, N, param)
         mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param);
     end
     [u0, ~, ~, ~, ~, feasibility]= mpc_optimizer(x0);
-    disp(feasibility.infostr);
+    %disp(feasibility.infostr);
      %sol = mpc_optimizer(x0);
 end
  
