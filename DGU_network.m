@@ -85,7 +85,8 @@ classdef DGU_network
             % function to change representation to A_Ni
             obj.A_Ni = change_system_representation(obj.Ai, obj.Fi, obj.Ci, obj.Agraph);
             % function compute references here
-            compute_ref()    
+            [obj.di_ref, obj.Iti_ref] = compute_ref(obj.nb_subsystems, obj.Agraph,...
+                                                    obj.Vr, obj.Il, obj.Rij, obj.Ri, obj.Vin)    
             % Compute constraints
             set_constraints()
         end
@@ -168,7 +169,7 @@ function A_Ni = change_system_representation(Ai,Fi,Ci,Agraph)
             end
 end
 
-function [di_ref, Iti_ref] = compute_ref(M,Agraph, Vr,Il, Rij, R, Vin)
+function [di_ref, Iti_ref] = compute_ref(M, Agraph, Vr, Il, Rij, R, Vin)
             %load('system/DGU_electrical_param.mat')
             %M = nb_subsystems;
             di_ref = zeros(1,M); Iti_ref = zeros(1,M);
