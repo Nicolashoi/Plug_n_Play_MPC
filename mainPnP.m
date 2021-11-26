@@ -4,7 +4,7 @@ clear
 addpath 'C:\Program Files\Mosek\9.3\toolbox\R2015aom'
 addpath(genpath(cd));
 %% Initial DGU Network
-
+clear
 filename = 'config_DGU_1.txt';
 [nb_subsystems, Vin,R,L,C, Vmax, Vmin, Imax, Imin] = importData(filename);
 
@@ -12,8 +12,9 @@ Rij_mat = zeros(nb_subsystems);
 Rij_mat(1,2) = 1.75; Rij_mat(2,3) = 3.5; Rij_mat(2,4) = 1.75; 
 Rij_mat(3,5) = 2.8;
 Rij_mat = Rij_mat + tril(Rij_mat',1);
-
-dguNet = DGU_network(nb_subsystems, Rij_mat);
+%% 
+deltaConfig = false;
+dguNet = DGU_network(nb_subsystems, Rij_mat, deltaConfig);
 % references
 Vr = linspace(49.95, 50.2, nb_subsystems);
 Il = linspace(2.5, 7.5, nb_subsystems);
@@ -24,14 +25,14 @@ for i=1:nb_subsystems
 end
 dguNet = dguNet.initDynamics([1:1:nb_subsystems]);
 control_type = "MPC_2";
-[x0, Q_Ni, Ri, control_type] = tuningParam(dguNet,control_type)
+[x0, Q_Ni, Ri, control_type] = tuningParam(dguNet,control_type);
 length_sim = 50;
 [X,U] = simulate_system(@mpc_online_2, x0,length_sim, control_type, dguNet,...
                          Q_Ni, Ri);
 config = "DISTRIBUTED";
 dguNet.plot_DGU_system(X,U, config, control_type, dguNet);
 
-
+%% UTILS FUNCTIONS 
 function [x0, Q_Ni, Ri, control_type] = tuningParam(dguNet,control_type)
     Q_Ni = cell(1,dguNet.nb_subsystems); 
     Ri = cell(1,dguNet.nb_subsystems);

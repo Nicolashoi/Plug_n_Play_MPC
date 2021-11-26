@@ -27,6 +27,7 @@ classdef DGU_network
        di_ref
        nb_subsystems
        ni = 2 % size of subsystem state
+       delta
        %% Constraints
        Vmax
        Vmin
@@ -49,9 +50,10 @@ classdef DGU_network
     
     methods
         % constructor
-        function obj = DGU_network(nb_subsystems, Rij_mat)
-            if nargin == 2
+        function obj = DGU_network(nb_subsystems, Rij_mat, delta)
+            if nargin == 3
                 obj.nb_subsystems = nb_subsystems;
+                obj.delta = delta;
                 obj.Rij_mat = Rij_mat;
                 obj.Agraph = Rij_mat;
                 nonzeroIdx = Rij_mat ~= 0;
@@ -76,8 +78,6 @@ classdef DGU_network
             obj.Imax(idx_DGU) = Imax;
             obj.Imin(idx_DGU) = Imin;
         end
-        
-         
         
         % initialize DGU dynamics
         function obj = initDynamics(obj,idx_DGU)
@@ -104,7 +104,13 @@ classdef DGU_network
             [obj.di_ref, obj.Iti_ref] = compute_ref(obj.nb_subsystems, obj.Agraph,...
                                                     obj.Vr, obj.Il, obj.Rij_mat, obj.Ri, obj.Vin);    
             % Compute constraints
-            obj = obj.setConstraints(obj);
+            if ~obj.delta
+                obj = obj.setConstraints(obj);
+            elseif obj.delta
+                obj = obj.setConstraintsDelta(obj);
+            else
+                error("check if delta configuration is true or false")
+            end   
             
         end
     end
@@ -127,6 +133,23 @@ classdef DGU_network
               end   
        end
         
+        function obj = setConstraintsDelta(obj)
+              for i= 1:obj.nb_subsystems
+                obj.Xref{i} = [obj.Vr(i); obj.Iti_ref(i)];
+                obj.Uref{i} = obj.di_ref(i);
+                obj.Gx_i{i}=  [eye(obj.ni); -eye(obj.ni)];
+                obj.Gu_i{i} = [1;-1];
+                obj.fx_i{i} = [obj.Vmax(i); obj.Imax(i); -obj.Vmin(i); ...
+                              -obj.Imin(i)] + [-obj.Xref{i}; obj.Xref{i}];
+                obj.fu_i{i} = [1;0]+[-obj.Uref{i}; obj.Uref{i}];
+              end 
+              for i= 1:obj.nb_subsystems
+                out_neighbors = sort([i;successors(obj.graph, i)]); % neighbor states of
+                obj.Gx_Ni{i} = blkdiag(obj.Gx_i{out_neighbors});
+                obj.fx_Ni{i} = vertcat(obj.fx_i{out_neighbors});
+              end   
+       end
+       
        function obj = setSelectionMatrices(obj)
            state_i = eye(obj.ni);
            N = obj.nb_subsystems*obj.ni;
