@@ -11,7 +11,7 @@ end
  
 function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
     %param = param_2_DGU;
-    M = param.number_subsystem;
+    M = param.nb_subsystems;
     %% create variables for optimizer
     nx = size(param.Ai{1},1);
     nu = size(param.Bi{1},2); % size 1
@@ -95,7 +95,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
         PiInv = inv(Pi{i});
         constraints = [constraints, (param.A_Ni{i}+param.Bi{i}*Ki{i})...
                        *c_Ni{i} + param.Bi{i}*di(:,i) - ci(:,i) == bi(:,i)];
-        constraints = [constraints, alpha(i)-sumLambda_ij >= sum(bi(:,i)))];    
+        constraints = [constraints, alpha(i)-sumLambda_ij >= sum(bi(:,i))];    
         for k= 1:ni
             nondiag1 = sum(abs(PiInv(k,:))*alpha(i))- abs(PiInv(k,k))*alpha(i)+...
                        sum(abs(param.A_Ni{i}(k,:)+ param.Bi{i}(k)*Ki{i}(:))*alpha_Ni{i})...

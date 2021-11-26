@@ -108,23 +108,23 @@ classdef utilityFunctions
         end
         %% Plot DGU system
         function plot_DGU_system(X,U, config, control_type, param)  
-             M = param.number_subsystem;
+             M = param.nb_subsystems;
              lgd = cell(1,M);
              voltage = cell(1,M); current= cell(1,M); integrator = cell(1,M);
              if config == "GENERAL"
                 states = cell2mat(X); % extract position/velocity at each timesteps
-                k = M * param.size_subsystem;
+                k = M * param.ni;
                 j = 1;
                 for i = 1:M
                     voltage{i} = states(j:k:end);
                     current{i} = states(j+1:k:end);
                     integrator{i} = states(j+2:k:end);
-                    j = j+param.size_subsystem;
+                    j = j+param.ni;
                     lgd{i} = sprintf("DGU %d", i);
                 end
                 controller = cell2mat(U');%first row u1, second row u2, column are timesteps
             elseif config == "DISTRIBUTED"
-                k = param.size_subsystem;
+                k = param.ni;
                 states = cell2mat(X);
                 for i = 1:M
                     voltage{i} = states(1:k:end,i);

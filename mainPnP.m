@@ -1,5 +1,8 @@
 %% Main File for PnP
-
+clear
+% USE MOSEK as solver (ADD to path)
+addpath 'C:\Program Files\Mosek\9.3\toolbox\R2015aom'
+addpath(genpath(cd));
 %% Initial DGU Network
 
 filename = 'config_DGU_1.txt';
@@ -20,10 +23,26 @@ for i=1:nb_subsystems
                                   Vmax(i), Vmin(i), Imax(i), Imin(i));
 end
 dguNet = dguNet.initDynamics([1:1:nb_subsystems]);
+control_type = "MPC_2";
+[x0, Q_Ni, Ri, control_type] = tuningParam(dguNet,control_type)
+length_sim = 50;
+[X,U] = simulate_system(@mpc_online_2, x0,length_sim, control_type, dguNet,...
+                         Q_Ni, Ri);
+config = "DISTRIBUTED";
+dguNet.plot_DGU_system(X,U, config, control_type, dguNet);
 
 
-
-
+function [x0, Q_Ni, Ri, control_type] = tuningParam(dguNet,control_type)
+    Q_Ni = cell(1,dguNet.nb_subsystems); 
+    Ri = cell(1,dguNet.nb_subsystems);
+    x0 = cell(1,dguNet.nb_subsystems);
+    for i = 1:dguNet.nb_subsystems
+        x0{i} = [50;0]; % second state is Ii - Il
+        m_Ni = size(dguNet.W{i},1);
+        Q_Ni{i} =1*eye(m_Ni);
+        Ri{i} = 1*eye(size(dguNet.Bi{i},2));
+    end
+end
 
 function [subsystems, Vin, R, L, C, Vmax, Vmin, Imax, Imin] = importData(filename)
     delimiterIn = ';';

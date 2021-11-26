@@ -17,7 +17,7 @@ classdef DGU_network
        Fi
        Ci
        A_Ni
-        
+       Cglobal 
        %% Others
        Agraph
        graph
@@ -96,6 +96,8 @@ classdef DGU_network
                 obj.Fi{i} = subsys_d.B(:,2);
                 obj.Ci{i} = Cc;     
             end
+            % define the global output matrix needed for passivity
+            obj.Cglobal = blkdiag(obj.Ci{:});
             % function to change representation to A_Ni
             obj.A_Ni = change_system_representation(obj.Ai, obj.Fi, obj.Ci, obj.Agraph);
             % function compute references here
@@ -148,7 +150,71 @@ classdef DGU_network
                 end
             end
        end
-        
+       
+       function plot_DGU_system(X,U, config, control_type, param)  
+             M = param.nb_subsystems;
+             lgd = cell(1,M);
+             voltage = cell(1,M); current= cell(1,M); integrator = cell(1,M);
+             if config == "GENERAL"
+                states = cell2mat(X); % extract position/velocity at each timesteps
+                k = M * param.ni;
+                j = 1;
+                for i = 1:M
+                    voltage{i} = states(j:k:end);
+                    current{i} = states(j+1:k:end);
+                    integrator{i} = states(j+2:k:end);
+                    j = j+param.ni;
+                    lgd{i} = sprintf("DGU %d", i);
+                end
+                controller = cell2mat(U');%first row u1, second row u2, column are timesteps
+            elseif config == "DISTRIBUTED"
+                k = param.ni;
+                states = cell2mat(X);
+                for i = 1:M
+                    voltage{i} = states(1:k:end,i);
+                    current{i} = states(2:k:end,i);
+                    integrator{i} = states(3:k:end,i);
+                    lgd{i} = sprintf("DGU %d", i);
+                end
+                controller = cell2mat(U)'; %first row u1, second row u2, column are timesteps
+            else
+                error("not implemented configuration in plot states");
+             end
+            sim_steps = 1:1:length(voltage{1});
+            t = param.Ts .* sim_steps;
+            figure()
+            sgtitle(control_type);
+            subplot(2,1,1)
+            title('Voltages');
+            
+            hold on
+            for i = 1:M
+                plot(t,voltage{i});
+            end
+            legend(string(lgd));
+            grid on
+            hold off
+            subplot(2,1,2)
+            title('Converter Currents');
+            hold on
+            for i = 1:M
+                plot(t, current{i});
+            end
+            legend(string(lgd));
+            grid on
+            hold off
+
+            figure()
+            title("Controller  " + control_type)
+            hold on
+            for i = 1:M
+                plot(t(1:end-1), controller(i,:));
+            end
+            legend(string(lgd));
+            grid on
+            hold off
+       end
+       
     end  % end methods
 end  % end class
 

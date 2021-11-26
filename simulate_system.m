@@ -24,14 +24,14 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
             end
             
         case "PASSIVITY" % passivity only
-            M = param.number_subsystem;
+            M = param.nb_subsystems;
             Kpass = cell(1,M); D = cell(1,M); Ppass = cell(1,M); 
             Gamma_pass = cell(1,M);
             for i= 1:M
             [Kpass{i}, D{i}, Ppass{i}, Gamma_pass{i}] = controller_passivity(...
                                              param.Ai{i}, param.Bi{i},...
                                              param.Ci{i}, param.Fi{i}, ...
-                                             param.L_tilde, param.global_sysd.C);
+                                             param.L_tilde, param.Cglobal);
             disp("Passive controller Gain"); disp(Kpass{i});
             end
             
@@ -52,13 +52,13 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
             
             
         case "MPC_2"
-            M = param.number_subsystem;
+            M = param.nb_subsystems;
             Kpass = cell(1,M); Ppass = cell(1,M); K_Ni = cell(1,M); 
             for i= 1:M
             [Kpass{i}, ~, Ppass{i}, ~] = controller_passivity(...
                                              param.Ai{i}, param.Bi{i},...
                                              param.Ci{i}, param.Fi{i}, ...
-                                             param.L_tilde, param.global_sysd.C);
+                                             param.L_tilde, param.Cglobal);
             disp("Passive controller Gain"); disp(Kpass{i});
             end
             for i=1:M
@@ -81,7 +81,7 @@ end
 
 %% SIMULATION FOR OSCILLATOR
 function [X,U] = sim_oscill_distributed(x0, length_sim, K,param)
-    M = param.number_subsystem; % number of subsystems
+    M = param.nb_subsystems; % number of subsystems
     X = cell(length_sim+1,1); % state at each timestep
     U = cell(length_sim,1); % control input at each timestep
     X{1} = horzcat(x0{:}); % columns are subsystem i
@@ -117,7 +117,7 @@ end
 function [X, U]= mpc_sim_oscill(controller, x0, length_sim, param,...
                                           alpha, Q_Ni, Ri, Pi, Gamma_Ni)
   
-        M = param.number_subsystem; % number of subsystems
+        M = param.nb_subsystems; % number of subsystems
         X = cell(length_sim+1,1); % state at each timestep
         U = cell(length_sim,1); % control input at each timestep
         X{1} = horzcat(x0{:}); % initial state columns are subsystem i
@@ -145,7 +145,7 @@ end
 
 %% SIMULATION FOR DGU
 function [X,U] = sim_DGU_distributed(x0, length_sim, K,param)
-    M = param.number_subsystem; % number of subsystems
+    M = param.nb_subsystems; % number of subsystems
     X = cell(length_sim+1,1); % state at each timestep
     U = cell(length_sim,1); % control input at each timestep
     X{1} = horzcat(x0{:}); % columns are subsystem i
@@ -194,7 +194,7 @@ end
 function [X,U] = sim_global_DGU(x0, length_sim, K,param)
     
     Ad = param.global_sysd.A; Bd = param.global_sysd.B; 
-    M = param.number_subsystem; % number of subsystems
+    M = param.nb_subsystems; % number of subsystems
     X = cell(length_sim+1,1); % state at each timestep
     U = cell(length_sim,1); % control input at each timestep
     d = cell(length_sim,1); % duty cycle
@@ -231,7 +231,7 @@ end
 function [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
                                           alpha, Q_Ni, Ri, Pi, Gamma_Ni)
                                       
-        M = param.number_subsystem; % number of subsystems
+        M = param.nb_subsystems; % number of subsystems
         dX = cell(length_sim+1,1); % state at each timestep
         dU = cell(length_sim,1); % control input at each timestep
         X = cell(length_sim+1,1); % state at each timestep
@@ -265,7 +265,7 @@ end
 function [X,U] = mpc_DGU_tracking(controller, x0, length_sim, param,...
                                           K, Q_Ni, Ri, Pi)
                                       
-        M = param.number_subsystem; % number of subsystems
+        M = param.nb_subsystems; % number of subsystems
         X = cell(length_sim+1,1); % state at each timestep
         U = cell(length_sim,1); % control input at each timestep
         X{1} = horzcat(x0{:}); % initial state columns are subsystem i    
@@ -295,7 +295,7 @@ end
 % function [X, U]= mpc_sim_DGU(controller, x0, length_sim, param,...
 %                                           alpha, Q_Ni, Ri, Pi, Gamma_Ni)
 %   
-%         M = param.number_subsystem; % number of subsystems
+%         M = param.nb_subsystems; % number of subsystems
 %         X = cell(length_sim+1,1); % state at each timestep
 %         U = cell(length_sim,1); % control input at each timestep
 %         X{1} = horzcat(x0{:}); % initial state columns are subsystem i
@@ -304,7 +304,7 @@ end
 %         for i=1:M
 %             Kpass{i} = controller_passivity(param.Ai{i}, param.Bi{i},...
 %                                              param.Ci{i}, param.Fi{i}, ...
-%                                              param.L_tilde, param.global_sysd.C);
+%                                              param.L_tilde, param.Cglobal);
 %             sfi{i} = [0;0;-param.Vr{i}];
 %         end
 %         sf = horzcat(sfi{:});
