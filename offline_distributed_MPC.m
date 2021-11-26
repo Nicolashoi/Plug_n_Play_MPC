@@ -6,7 +6,7 @@
 
 function [Pi, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, param, passivity)
     % system choice
-    M = param.number_subsystem;
+    M = param.nb_subsystems;
     if ~passivity
         [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, param);
     elseif passivity

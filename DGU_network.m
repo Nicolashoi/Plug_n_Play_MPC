@@ -17,7 +17,7 @@ classdef DGU_network
        Fi
        Ci
        A_Ni
-       Cglobal 
+       global_sysd % useful to compare to LQR 
        %% Others
        Agraph
        graph
@@ -27,7 +27,7 @@ classdef DGU_network
        di_ref
        nb_subsystems
        ni = 2 % size of subsystem state
-       delta
+       delta_config
        %% Constraints
        Vmax
        Vmin
@@ -47,13 +47,18 @@ classdef DGU_network
        W
        Wij
     end
+    properties (Access = private)
+       Ac
+       Bc
+       Fc
+       Cc 
+    end
     
     methods
         % constructor
-        function obj = DGU_network(nb_subsystems, Rij_mat, delta)
-            if nargin == 3
+        function obj = DGU_network(nb_subsystems, Rij_mat)
+            if nargin == 2
                 obj.nb_subsystems = nb_subsystems;
-                obj.delta = delta;
                 obj.Rij_mat = Rij_mat;
                 obj.Agraph = Rij_mat;
                 nonzeroIdx = Rij_mat ~= 0;
@@ -85,71 +90,61 @@ classdef DGU_network
 %                 if isempty(obj.Ct) || isempty(obj.Vr)
 %                     error("Electrical parameters not correctly initialized or missing")
 %                 end
-                Ac = [0, 1/obj.Ct(i); -1/obj.Li(i), -obj.Ri(i)/obj.Li(i)];
-                Bc = [0; obj.Vin(i)/obj.Li(i)];
-                Fc = [1/obj.Ct(i); 0];
-                Cc = [1, 0];  
-                subsys = ss(Ac, [Bc Fc], [], []);
+                obj.Ac{i} = [0, 1/obj.Ct(i); -1/obj.Li(i), -obj.Ri(i)/obj.Li(i)];
+                obj.Bc{i} = [0; obj.Vin(i)/obj.Li(i)];
+                obj.Fc{i} = [1/obj.Ct(i); 0];
+                obj.Cc{i} = [1, 0];  
+                subsys = ss(obj.Ac{i}, [obj.Bc{i} obj.Fc{i}], [], []);
                 subsys_d = c2d(subsys, obj.Ts);
                 obj.Ai{i} = subsys_d.A;
                 obj.Bi{i} = subsys_d.B(:,1);
                 obj.Fi{i} = subsys_d.B(:,2);
-                obj.Ci{i} = Cc;     
+                obj.Ci{i} = obj.Cc{i};     
             end
-            % define the global output matrix needed for passivity
-            obj.Cglobal = blkdiag(obj.Ci{:});
+                A = blkdiag(obj.Ac{:});
+                B = blkdiag(obj.Bc{:});
+                C = blkdiag(obj.Cc{:});% define the global output matrix needed for passivity
+                F = blkdiag(obj.Fi{:});
+                A = A + F*obj.L_tilde*C;
+                sys = ss(A,B,C,[]);
+                obj.global_sysd = c2d(sys, obj.Ts); % Exact discretization of the global system
+            
             % function to change representation to A_Ni
             obj.A_Ni = change_system_representation(obj.Ai, obj.Fi, obj.Ci, obj.Agraph);
             % function compute references here
             [obj.di_ref, obj.Iti_ref] = compute_ref(obj.nb_subsystems, obj.Agraph,...
-                                                    obj.Vr, obj.Il, obj.Rij_mat, obj.Ri, obj.Vin);    
-            % Compute constraints
-            if ~obj.delta
-                obj = obj.setConstraints(obj);
-            elseif obj.delta
-                obj = obj.setConstraintsDelta(obj);
-            else
-                error("check if delta configuration is true or false")
-            end   
-            
+                                                    obj.Vr, obj.Il, obj.Rij_mat, obj.Ri, obj.Vin); 
         end
-    end
-    
-       methods (Static)
-       function obj = setConstraints(obj)
+                                                
+            function obj = setConstraints(obj, delta_config)
+              obj.delta_config = delta_config;
               for i= 1:obj.nb_subsystems
-                obj.Xref{i} = [obj.Vr(i); obj.Iti_ref(i)-obj.Il(i)];
-                obj.Uref{i} = obj.di_ref(i);
                 obj.Gx_i{i}=  [eye(obj.ni); -eye(obj.ni)];
                 obj.Gu_i{i} = [1;-1];
-                obj.fx_i{i} = [obj.Vmax(i); obj.Imax(i)-obj.Il(i);...
-                                -obj.Vmin(i); -obj.Imin(i)+obj.Il(i)];
-                obj.fu_i{i} = [1;0];
-              end 
-              for i= 1:obj.nb_subsystems
-                out_neighbors = sort([i;successors(obj.graph, i)]); % neighbor states of
-                obj.Gx_Ni{i} = blkdiag(obj.Gx_i{out_neighbors});
-                obj.fx_Ni{i} = vertcat(obj.fx_i{out_neighbors});
-              end   
-       end
-        
-        function obj = setConstraintsDelta(obj)
-              for i= 1:obj.nb_subsystems
-                obj.Xref{i} = [obj.Vr(i); obj.Iti_ref(i)];
-                obj.Uref{i} = obj.di_ref(i);
-                obj.Gx_i{i}=  [eye(obj.ni); -eye(obj.ni)];
-                obj.Gu_i{i} = [1;-1];
-                obj.fx_i{i} = [obj.Vmax(i); obj.Imax(i); -obj.Vmin(i); ...
+                if ~obj.delta_config
+                    obj.Xref{i} = [obj.Vr(i); obj.Iti_ref(i)-obj.Il(i)];
+                    obj.fx_i{i} = [obj.Vmax(i); obj.Imax(i)-obj.Il(i);...
+                                    -obj.Vmin(i); -obj.Imin(i)+obj.Il(i)];
+                    obj.fu_i{i} = [1;0];            
+                elseif obj.delta_config
+                    obj.Xref{i} = [obj.Vr(i); obj.Iti_ref(i)];
+                    obj.Uref{i} = obj.di_ref(i);
+                    obj.fx_i{i} = [obj.Vmax(i); obj.Imax(i); -obj.Vmin(i); ...
                               -obj.Imin(i)] + [-obj.Xref{i}; obj.Xref{i}];
-                obj.fu_i{i} = [1;0]+[-obj.Uref{i}; obj.Uref{i}];
+                    obj.fu_i{i} = [1;0]+[-obj.Uref{i}; obj.Uref{i}];
+                    
+                end
               end 
               for i= 1:obj.nb_subsystems
                 out_neighbors = sort([i;successors(obj.graph, i)]); % neighbor states of
                 obj.Gx_Ni{i} = blkdiag(obj.Gx_i{out_neighbors});
                 obj.fx_Ni{i} = vertcat(obj.fx_i{out_neighbors});
               end   
-       end
-       
+             end                                    
+                                                                                            
+        end
+
+       methods (Static)       
        function obj = setSelectionMatrices(obj)
            state_i = eye(obj.ni);
            N = obj.nb_subsystems*obj.ni;

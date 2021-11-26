@@ -1,46 +1,41 @@
 
 classdef utilityFunctions
     methods (Static)
-       
-        %% Change representation from passivity paper to x_Ni neighbor states
-        function A_Ni = change_system_representation(Ai,Fi,Ci,Agraph)
-            M = size(Ai,2); % number of subsystems    
-            G = digraph(Agraph);
-            A_Ni = cell(1,M);
-            for i=1:M
-                out_neighbors = sort([i;successors(G, i)]);
-                Acell = cell(1,length(out_neighbors));
-                %Acell{i} = Ai{i} - Fi{i}*sum(Agraph(i,:))*Ci{i};
-                %out_neighbors(i) = [];
-                for j=1:length(out_neighbors)
-                    if isequal(out_neighbors(j), i)
-                        Acell{j} = Ai{i} - Fi{i}*sum(Agraph(i,:))*Ci{i};
-                        
-                    else
-                        Acell{j} = Fi{i}*Agraph(i, out_neighbors(j))*...
-                                             Ci{out_neighbors(j)};
-                    end
-                   
-                end
-                A_Ni{i} = cell2mat(Acell);  
+      function [x0, Q_Ni, Ri] = tuningParam(dguNet, delta_config)
+        Q_Ni = cell(1,dguNet.nb_subsystems); 
+        Ri = cell(1,dguNet.nb_subsystems);
+        x0 = cell(1,dguNet.nb_subsystems);
+        for i = 1:dguNet.nb_subsystems
+            if delta_config
+                x0{i} = [50;5];
+            elseif ~delta_config
+                x0{i} = [50;0]; % second state is Ii - Il
+            else
+                error("config delta must be true or false");
             end
+            m_Ni = size(dguNet.W{i},1);
+            Q_Ni{i} =1*eye(m_Ni);
+            Ri{i} = 1*eye(size(dguNet.Bi{i},2));
         end
+end
+
+        function [subsystems, Vin, R, L, C, Vmax, Vmin, Imax, Imin] = importData(filename)
+            delimiterIn = ';';
+            headerlinesIn= 1;
+            dataDGU = importdata(filename, delimiterIn, headerlinesIn);
+            subsystems = dataDGU.data(1,1);
+            Vin = dataDGU.data(:,2);
+            R = dataDGU.data(:,3);
+            L = dataDGU.data(:,4);
+            C = dataDGU.data(:,5);
+            Vmax = dataDGU.data(:,6);
+            Vmin = dataDGU.data(:,7);
+            Imax = dataDGU.data(:,8);
+            Imin = dataDGU.data(:,9);
+        end 
+       
         
-        %% Compute references for DGU system
-        function [di_ref, Iti_ref] = compute_ref(M,Agraph, Vr,Il, Rij, R, Vin)
-            %load('system/DGU_electrical_param.mat')
-            %M = nb_subsystems;
-            di_ref = zeros(1,M); Iti_ref = zeros(1,M);
-            G = digraph(Agraph);
-            for i= 1:M
-                out_neighbors = sort([successors(G, i)]);
-                Vi = repmat(Vr(i), size(Vr(out_neighbors)));
-                sum_over_Ni = sum((Vi - Vr(out_neighbors))./Rij(i,out_neighbors));
-                di_ref(i) = (Vr(i)+ Il(i)*R(i))/Vin(i) + R(i)/Vin(i)*sum_over_Ni;
-                Iti_ref(i) = (di_ref(i)*Vin(i) - Vr(i))/R(i);
-            end     
-        end
-        
+       
         
         %% Compute Finite Cost given state, input, Q and R
         function cost = compute_QR_cost(X,U,Q,R, config)
@@ -58,117 +53,6 @@ classdef utilityFunctions
                 error("wrong configuration, choose between general or distributed");
             end   
         end
-        %% Plot states and control input for the coupled oscillator model
-        function plot_states_coupled_osci(X,U, config, control_type, param)  
-            if config == "GENERAL"
-                states = cell2mat(X); % extract position/velocity at each timesteps
-                k = param.number_subsystem * param.size_subsystem;
-                position{1} = states(1:k:end); position{2} = states(3:k:end);
-                velocity{1} = states(2:k:end); velocity{2} = states(4:k:end); 
-                controller = cell2mat(U');%first row u1, second row u2, column are timesteps
-            elseif config == "DISTRIBUTED"
-                k = param.size_subsystem;
-                states = cell2mat(X);
-                position{1} = states(1:k:end,1);
-                position{2} = states(1:k:end,2);
-                velocity{1} = states(2:k:end,1);
-                velocity{2} = states(2:k:end,2);
-                controller = cell2mat(U)'; %first row u1, second row u2, column are timesteps
-            else
-                error("not implemented configuration in plot states");
-            end
-
-            figure()
-            sgtitle(control_type);
-            subplot(2,1,1)
-            title('Positions');
-            hold on
-            plot(position{1}, 'r-');
-            plot(position{2}, 'b-');
-            legend("mass 1", "mass 2");
-            grid on
-            hold off
-            subplot(2,1,2)
-            title('velocities');
-            hold on
-            plot(velocity{1}, 'r-');
-            plot(velocity{2}, 'b-');
-            legend("mass 1", "mass 2");
-            grid on
-            hold off
-
-            figure()
-            title("Controller  " + control_type)
-            hold on
-            plot(controller(1,:), 'r-');
-            plot(controller(2,:), 'b-');
-            legend("U1", "U2");
-            grid on
-            hold off
-        end
-        %% Plot DGU system
-        function plot_DGU_system(X,U, config, control_type, param)  
-             M = param.nb_subsystems;
-             lgd = cell(1,M);
-             voltage = cell(1,M); current= cell(1,M); integrator = cell(1,M);
-             if config == "GENERAL"
-                states = cell2mat(X); % extract position/velocity at each timesteps
-                k = M * param.ni;
-                j = 1;
-                for i = 1:M
-                    voltage{i} = states(j:k:end);
-                    current{i} = states(j+1:k:end);
-                    integrator{i} = states(j+2:k:end);
-                    j = j+param.ni;
-                    lgd{i} = sprintf("DGU %d", i);
-                end
-                controller = cell2mat(U');%first row u1, second row u2, column are timesteps
-            elseif config == "DISTRIBUTED"
-                k = param.ni;
-                states = cell2mat(X);
-                for i = 1:M
-                    voltage{i} = states(1:k:end,i);
-                    current{i} = states(2:k:end,i);
-                    integrator{i} = states(3:k:end,i);
-                    lgd{i} = sprintf("DGU %d", i);
-                end
-                controller = cell2mat(U)'; %first row u1, second row u2, column are timesteps
-            else
-                error("not implemented configuration in plot states");
-             end
-            sim_steps = 1:1:length(voltage{1});
-            t = param.Ts .* sim_steps;
-            figure()
-            sgtitle(control_type);
-            subplot(2,1,1)
-            title('Voltages');
-            
-            hold on
-            for i = 1:M
-                plot(t,voltage{i});
-            end
-            legend(string(lgd));
-            grid on
-            hold off
-            subplot(2,1,2)
-            title('Converter Currents');
-            hold on
-            for i = 1:M
-                plot(t, current{i});
-            end
-            legend(string(lgd));
-            grid on
-            hold off
-
-            figure()
-            title("Controller  " + control_type)
-            hold on
-            for i = 1:M
-                plot(t(1:end-1), controller(i,:));
-            end
-            legend(string(lgd));
-            grid on
-            hold off
-        end
+       
     end % end methods
 end % end class

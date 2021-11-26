@@ -20,7 +20,7 @@ end
  
 function mpc_optimizer = init_optimizer(Q_Ni, Ri, Pi, N, param)
     %param = param_2_DGU;
-    M = param.number_subsystem;
+    M = param.nb_subsystems;
     %% create variables for optimizer
     nx = size(param.Ai{1},1);
     nu = size(param.Bi{1},2); 
