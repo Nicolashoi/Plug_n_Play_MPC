@@ -13,7 +13,7 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
         case "MPC"
             [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
                                   alpha, Q, R, Pi, Gamma_Ni);
-      case "MPC_online"
+      case "MPC online"
         M = param.nb_subsystems;
         Kpass = cell(1,M); Ppass = cell(1,M); K_Ni = cell(1,M); 
         for i= 1:M
