@@ -20,7 +20,7 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
         [Kpass{i}, ~, Ppass{i}, ~] = controller_passivity(...
                                          param.Ai{i}, param.Bi{i},...
                                          param.Ci{i}, param.Fi{i}, ...
-                                         param.L_tilde, param.global_sysd.C);
+                                         param.L_tilde(i,:), param.global_sysd.C);
         disp("Passive controller Gain"); disp(Kpass{i});
         end
         for i=1:M
@@ -29,8 +29,8 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
             K_Ni{i} = K_block(neighbors==i,:); % extract only row corresponding to subsystem i
         end
         [X,U] = mpc_DGU_tracking(controller, x0, length_sim, param,...
-                                      K_Ni, Q, R, Ppass);   
-                                  
+                                      K_Ni, Q, R, Ppass);  
+
         case "PASSIVITY" % passivity only
             M = param.nb_subsystems;
             Kpass = cell(1,M); D = cell(1,M); Ppass = cell(1,M); 
@@ -39,7 +39,7 @@ function [X,U, Pinf] = simulate_system(controller, x0, length_sim, simulation, p
             [Kpass{i}, D{i}, Ppass{i}, Gamma_pass{i}] = controller_passivity(...
                                              param.Ai{i}, param.Bi{i},...
                                              param.Ci{i}, param.Fi{i}, ...
-                                             param.L_tilde, param.global_sysd.C);
+                                             param.L_tilde(i,:), param.global_sysd.C);
             disp("Passive controller Gain"); disp(Kpass{i});
             end
             [X,U] = sim_DGU_distributed(x0, length_sim, Kpass,param);

@@ -19,7 +19,7 @@ function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, L_tilde,...
                                                       C_global)
     %% Interconnection Variables
     U = L_tilde*C_global;
-    W = C_global'*L_tilde;
+    W = C_global'*L_tilde';
     ni = size(A,1);
     mi = size(B,2);
     constraints = [];
@@ -44,12 +44,14 @@ function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, L_tilde,...
     constraints = [constraints, E >= epsilon_i*eye(ni), ...
                    H >= epsilon_i*eye(ni), S >= epsilon_i*eye(mi)];
     epsilon_0 = 1e-3;
-    for j=1:size(H,1)
+    for j=1:ni
         constraints = [constraints, H(j,j) <= 1/(norm(W(j,:),1)+ epsilon_0)];
     end
-    for k=1:size(S,1)
+    for k=1:mi
        if norm(U(k,:),1) ~= 0
             constraints = [constraints, S(k,k) <= 1/norm(U(k,:),1)]; 
+       else 
+           disp("Warning: division by 0 in controller passivity Theorem 1");
        end
     end
     %% OPTIMIZER

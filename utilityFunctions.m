@@ -1,23 +1,26 @@
 
 classdef utilityFunctions
     methods (Static)
+        
+
+        
       function [x0, Q_Ni, Ri] = tuningParam(dguNet, delta_config)
-        Q_Ni = cell(1,dguNet.nb_subsystems); 
-        Ri = cell(1,dguNet.nb_subsystems);
-        x0 = cell(1,dguNet.nb_subsystems);
-        for i = 1:dguNet.nb_subsystems
-            if delta_config
-                x0{i} = [50;5];
-            elseif ~delta_config
-                x0{i} = [50;0]; % second state is Ii - Il
-            else
-                error("config delta must be true or false");
+            Q_Ni = cell(1,dguNet.nb_subsystems); 
+            Ri = cell(1,dguNet.nb_subsystems);
+            x0 = cell(1,dguNet.nb_subsystems);
+            for i = 1:dguNet.nb_subsystems
+                if delta_config
+                    x0{i} = [50;5];
+                elseif ~delta_config
+                    x0{i} = [50;0]; % second state is Ii - Il
+                else
+                    error("config delta must be true or false");
+                end
+                m_Ni = size(dguNet.W{i},1);
+                Q_Ni{i} =1*eye(m_Ni);
+                Ri{i} = 1*eye(size(dguNet.Bi{i},2));
             end
-            m_Ni = size(dguNet.W{i},1);
-            Q_Ni{i} =1*eye(m_Ni);
-            Ri{i} = 1*eye(size(dguNet.Bi{i},2));
         end
-end
 
         function [subsystems, Vin, R, L, C, Vmax, Vmin, Imax, Imin] = importData(filename)
             delimiterIn = ';';
@@ -34,9 +37,6 @@ end
             Imin = dataDGU.data(:,9);
         end 
        
-        
-       
-        
         %% Compute Finite Cost given state, input, Q and R
         function cost = compute_QR_cost(X,U,Q,R, config)
             cost = 0;

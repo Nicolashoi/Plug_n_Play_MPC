@@ -18,6 +18,11 @@ classdef DGU_network
        Ci
        A_Ni
        global_sysd % useful to compare to LQR 
+       
+       %% Controller Parameters
+       Ki
+       K_Ni
+       Pi
        %% Others
        Agraph
        graph
@@ -46,6 +51,7 @@ classdef DGU_network
        U
        W
        Wij
+       activeDGU
     end
     properties (Access = private)
        Ac
@@ -56,7 +62,7 @@ classdef DGU_network
     
     methods
         % constructor
-        function obj = DGU_network(nb_subsystems, Rij_mat)
+        function obj = DGU_network(nb_subsystems)
             if nargin == 2
                 obj.nb_subsystems = nb_subsystems;
                 obj.Rij_mat = Rij_mat;
@@ -68,7 +74,19 @@ classdef DGU_network
                 obj.L_tilde = diag(sum(obj.Agraph))-obj.Agraph;
             end
         end
-        
+%         
+%         function obj = setActiveDGU(obj, Rij_mat, activeDGU)
+%             obj.activeDGU = activeDGU;
+%             obj.Rij_mat = Rij_mat;
+%             obj.Agraph = Rij_mat;
+%             nonzeroIdx = Rij_mat ~= 0;
+%             obj.Agraph(nonzeroIdx) = 1./obj.Agraph(nonzeroIdx);  
+%             obj.graph = digraph(obj.Agraph);
+%             obj = obj.setSelectionMatrices(obj);
+%             obj.L_tilde = diag(sum(obj.Agraph))-obj.Agraph;
+%             
+%        
+%         end
         % initialize electrical parameters
         function obj = initElecParam(obj, idx_DGU, Vin, Vr, Il, Ri, Ct, Li, ...
                                      Vmax, Vmin, Imax, Imin)
@@ -211,6 +229,8 @@ classdef DGU_network
             end
             legend(string(lgd));
             grid on
+            ylabel('[V]');
+            xlabel('[s]');
             hold off
             subplot(2,1,2)
             title('Converter Currents');
@@ -219,7 +239,9 @@ classdef DGU_network
                 plot(t, current{i});
             end
             legend(string(lgd));
+            ylabel('[A]');
             grid on
+            xlabel('[s]');
             hold off
 
             figure()
@@ -229,6 +251,8 @@ classdef DGU_network
                 plot(t(1:end-1), controller(i,:));
             end
             legend(string(lgd));
+            xlabel('[s]');
+            ylabel('Duty cycle');
             grid on
             hold off
        end
