@@ -13,12 +13,13 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
     M = param.nb_subsystems;%length(param.activeDGU);
     %% create variables for optimizer
     nx = param.ni;
-    nu =param.nu; % size 1
+    nu = param.nu; % size 1
     % Input cell array of size N-1, each cell is an array of size nu*M
     U = sdpvar(repmat(nu,1,N-1), repmat(M,1,N-1),'full');
     % State cell array of size N (timestep), each cell is an array of size nx*M
     X = sdpvar(repmat(nx,1,N),repmat(M,1,N),'full'); % contains state of each subsystem i
     X0 = sdpvar(nx,M,'full'); % state as rows and system number as column
+    %X0 = sdpvar(repmat(nx,1,M),ones(1,M), 'full');
     X_Ni = cell(M,N-1); % cell array for neighbor states of i
     % Equilibrium state and input
     Ue = sdpvar(nu, M,'full');
@@ -39,7 +40,9 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
     constraints = [];
     S = cell(M,1);
     %% Constraints: Outer loop over subsystems, inner loop over Horizon
+    
     for i=param.activeDGU % loop over all subsystems
+        constraints = [constraints, X{1}(:,i) == X0(:,i)];
         S{i} = 1000*eye(size(param.Ai{i},1));
         ni = size(param.A_Ni{i},1); 
         n_Ni = size(param.A_Ni{i},2); % get size of set of Neighbors
@@ -167,12 +170,12 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
 
     end    
     % parameter for initial condition
-    constraints = [constraints, X{1} == X0];
+    %constraints = [constraints, X{1} == X0];
     
     %% Create optimizer object 
     ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
     parameters_in = {X0};
     %solutions_out = {[U{:}], [X_eNi{1}], [X_eNi{2}], [X_eNi{3}], di, Ue}; % general form 
-     solutions_out = U{1}; % get U0 for each subsystem, size nu x M
+    solutions_out = U{1}; % get U0 for each subsystem, size nu x M
     mpc_optimizer = optimizer(constraints,objective,ops,parameters_in,solutions_out);
 end

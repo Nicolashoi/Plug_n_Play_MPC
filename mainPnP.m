@@ -1,5 +1,6 @@
 %% Main File for PnP
 clear
+close all
 % USE MOSEK as solver (ADD to path)
 addpath 'C:\Program Files\Mosek\9.3\toolbox\R2015aom'
 addpath(genpath(cd));
@@ -46,7 +47,7 @@ dguNet.plot_DGU_system(X,U, config, control_type, dguNet); % plot results
 %% Scenario 2: Add a DGU to the network: connect DGU 6 to DGU 3
 dguPos = 6;
 activeDGU_scen2 = 1:1:6;
-Rij_mat(3,6) = 0.75; Rij_mat(6,3) = Rij_mat(3,6);  % New link
+Rij_mat(3,6) = 2.75; Rij_mat(6,3) = Rij_mat(3,6);  % New link
 dguNet2 = dguNet; % copy instance class to new object (keep both objects to compare)
 dguNet2 = dguNet2.setActiveDGU(Rij_mat, activeDGU_scen2);
 dguNet2 = dguNet2.initDynamics(); % recompute Dynamics (changed with integration of DGU 6)
@@ -55,12 +56,9 @@ plot(dguNet2.NetGraph, 'EdgeLabel', dguNet2.NetGraph.Edges.Weight, 'Marker', 's'
 dguNet2 = dguNet2.setConstraints(delta_config);
 
 dguNet2 = PnP.redesignPhase(dguNet2, dguNet2.NetGraph,dguPos, "add");
-[~, Q_Ni, Ri] = utils.tuningParam(dguNet2, delta_config);
-for i=activeDGU_scen1
-    x0_scen2{i} = X{end}(:,i); % previous states start
-end
-x0_scen2{dguPos} = [50;0];
-[Xscen2,Uscen2] = PnP.mpc_DGU_tracking(@mpc_online_2, x0_scen2, length_sim, dguNet2, Q_Ni, Ri);
+% call again since dimension of Q_Ni change when adding/removing DGU
+[x0, Q_Ni, Ri] = utils.tuningParam2(dguNet2, delta_config); 
+[Xscen2,Uscen2] = PnP.mpc_DGU_tracking(@mpc_online_2, x0, length_sim, dguNet2, Q_Ni, Ri);
 dguNet2.plot_DGU_system(Xscen2, Uscen2, config, control_type, dguNet2); % plot results
 
 %% Remove DGU 4
@@ -75,9 +73,7 @@ plot(dguNet3.NetGraph, 'EdgeLabel', dguNet3.NetGraph.Edges.Weight, 'Marker', 's'
 dguNet3 = dguNet3.setConstraints(delta_config);
 
 dguNet3 = PnP.redesignPhase(dguNet3, dguNet2.NetGraph, dguDelete, "delete");
-for i=activeDGU_scen2
-    x0_scen3{i} = Xscen2{end}(:,i); % previous states start
-end
-%[~, Q_Ni, Ri] = utils.tuningParam(dguNet3, delta_config);
-[Xscen3,Uscen3] = PnP.mpc_DGU_tracking(@mpc_online_2, x0_scen3, length_sim, dguNet3, Q_Ni, Ri);
+% call again since dimension of Q_Ni change when adding/removing DGU
+[x0, Q_Ni, Ri] = utils.tuningParam2(dguNet3, delta_config);
+[Xscen3,Uscen3] = PnP.mpc_DGU_tracking(@mpc_online_2, x0, length_sim, dguNet3, Q_Ni, Ri);
 dguNet3.plot_DGU_system(Xscen3, Uscen3, config, control_type, dguNet3); % plot results

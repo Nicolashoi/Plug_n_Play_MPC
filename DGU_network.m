@@ -231,7 +231,7 @@ classdef DGU_network
             for i = param.activeDGU
                 plot(t,voltage{i});
             end
-            legend(string(lgd));
+            legend(string(lgd(param.activeDGU)));
             grid on
             ylabel('[V]');
             xlabel('[s]');
@@ -242,7 +242,7 @@ classdef DGU_network
             for i = param.activeDGU
                 plot(t, current{i});
             end
-            legend(string(lgd));
+            legend(string(lgd(param.activeDGU)));
             ylabel('[A]');
             grid on
             xlabel('[s]');
@@ -254,7 +254,7 @@ classdef DGU_network
             for i = param.activeDGU
                 plot(t(1:end-1), controller(i,:));
             end
-            legend(string(lgd));
+            legend(string(lgd(param.activeDGU)));
             xlabel('[s]');
             ylabel('Duty cycle');
             grid on
