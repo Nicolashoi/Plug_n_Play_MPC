@@ -16,12 +16,14 @@
 %   Gamma_i: positive-definite diagonal matrix
 
 function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, L_tilde,...
-                                                      C_global)
+                                                      C_global, i)
     %% Interconnection Variables
     U = L_tilde*C_global;
     W = C_global'*L_tilde';
     ni = size(A,1);
     mi = size(B,2);
+    Ui = U(i,:);
+    Wi = W(i:i+ni-1,:);
     constraints = [];
      
     %% Decision Variables
@@ -29,7 +31,7 @@ function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, L_tilde,...
     H = diag(sdpvar(ni,1)); % diagonal matrix as defined in Th.1
     G = sdpvar(mi,ni, 'full');
     S = diag(sdpvar(mi,1)); % diagonal matrix as defined in Th.1
-    objective = -trace(E);%0; %norm(E-inv([1.1, -0.32; -0.32, 1.1]), 'fro'); % yalmip always assumes minimization so (-) to max
+    objective = trace(H);%0; %norm(E-inv([1.1, -0.32; -0.32, 1.1]), 'fro'); % yalmip always assumes minimization so (-) to max
     %% Equation 7
     LMI = [E, 1/2*E*C', (A*E + B*G)', E;...
            1/2*C*E, 1/2*S + 1/2*S', F', zeros(size(F',1),size(E,2));...
@@ -45,11 +47,11 @@ function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, L_tilde,...
                    H >= epsilon_i*eye(ni), S >= epsilon_i*eye(mi)];
     epsilon_0 = 1e-3;
     for j=1:ni
-        constraints = [constraints, H(j,j) <= 1/(norm(W(j,:),1)+ epsilon_0)];
+        constraints = [constraints, H(j,j) <= 1/(norm(Wi(j,:),1)+ epsilon_0)];
     end
     for k=1:mi
        if norm(U(k,:),1) ~= 0
-            constraints = [constraints, S(k,k) <= 1/norm(U(k,:),1)]; 
+            constraints = [constraints, S(k,k) <= 1/norm(Ui(k,:),1)]; 
        else 
            disp("Warning: division by 0 in controller passivity Theorem 1");
        end

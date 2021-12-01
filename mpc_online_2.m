@@ -10,11 +10,10 @@ function u0 = mpc_online_2(x0, Ki, Q_Ni, Ri, Pi, N, param)
 end
  
 function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
-    %param = param_2_DGU;
-    M = param.nb_subsystems;
+    M = param.nb_subsystems;%length(param.activeDGU);
     %% create variables for optimizer
-    nx = size(param.Ai{1},1);
-    nu = size(param.Bi{1},2); % size 1
+    nx = param.ni;
+    nu =param.nu; % size 1
     % Input cell array of size N-1, each cell is an array of size nu*M
     U = sdpvar(repmat(nu,1,N-1), repmat(M,1,N-1),'full');
     % State cell array of size N (timestep), each cell is an array of size nx*M
@@ -40,17 +39,17 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
     constraints = [];
     S = cell(M,1);
     %% Constraints: Outer loop over subsystems, inner loop over Horizon
-    for i=1:M % loop over all subsystems
+    for i=param.activeDGU % loop over all subsystems
         S{i} = 1000*eye(size(param.Ai{i},1));
         ni = size(param.A_Ni{i},1); 
         n_Ni = size(param.A_Ni{i},2); % get size of set of Neighbors
         % obtain sorted list of neighbors of system i
-        neighbors = sort([i;successors(param.graph, i)]);
+        neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
         X_eNi{i} = sdpvar(n_Ni,1,'full'); % neighbor equilibrium state i
         lambda{i} = sdpvar(n_Ni,1, 'full');
         % constraint for X_eNi =  concat of neighbor x_ei
         constraints = [constraints, X_eNi{i} == ...
-                                    reshape(Xe(:,neighbors),[],1)];
+                                    reshape(Xe(:,neighbors_i),[],1)];
         %% Equilibrium constraints
         constraints = [constraints, Xe(:,i) == param.A_Ni{i}*X_eNi{i} + ...
                                                 param.Bi{i}*Ue(:,i)];
@@ -63,18 +62,18 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
         sumLambda_ij = 0;
         AbsSumLambdaP_ij = 0;
         % define alpha_Ni, c_Ni and Pij
-        for j = 1:length(neighbors)
+        for j = 1:length(neighbors_i)
 %             constraints = [constraints,  alpha_Ni{i} == ...
 %             alpha_Ni{i} + alpha(neighbors(j))*param.Wij{i}{neighbors(j)}*... 
 %                             (param.Wij{i}{neighbors(j)})'];
 %             constraints = [constraints, c_Ni{i} == ...  
 %             c_Ni{i} + param.Wij{i}{neighbors(j)}'*ci(:,neighbors(j))];
              alpha_Ni{i} = alpha_Ni{i} + ...
-                            alpha(neighbors(j))*(param.Wij{i}{neighbors(j)})'*... 
-                            (param.Wij{i}{neighbors(j)});
-             c_Ni{i} = c_Ni{i} + param.Wij{i}{neighbors(j)}'*ci(:,neighbors(j));
-             Pij = (param.Wij{i}{neighbors(j)})'*Pi{neighbors(j)}...
-                    *(param.Wij{i}{neighbors(j)});
+                            alpha(neighbors_i(j))*(param.Wij{i}{neighbors_i(j)})'*... 
+                            (param.Wij{i}{neighbors_i(j)});
+             c_Ni{i} = c_Ni{i} + param.Wij{i}{neighbors_i(j)}'*ci(:,neighbors_i(j));
+             Pij = (param.Wij{i}{neighbors_i(j)})'*Pi{neighbors_i(j)}...
+                    *(param.Wij{i}{neighbors_i(j)});
              sumLambdaP_ij = sumLambdaP_ij + ...
                              lambda{i}(j)*Pij;
              AbsSumLambdaP_ij = AbsSumLambdaP_ij + lambda{i}(j)*abs(Pij);
@@ -110,10 +109,10 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
         %% Equation 11
         for k=1:size(param.Gx_Ni{i},1) 
             sum_GxNorm2 = 0;
-            for j=1:length(neighbors)
+            for j=1:length(neighbors_i)
                 sum_GxNorm2 = sum_GxNorm2 + norm(param.Gx_Ni{i}(k,:)*...
-                             (param.Wij{i}{neighbors(j)})'*...
-                              Pi{neighbors(j)}^(-1/2),2) * alpha(neighbors(j));
+                             (param.Wij{i}{neighbors_i(j)})'*...
+                              Pi{neighbors_i(j)}^(-1/2),2) * alpha(neighbors_i(j));
                 
             end
             constraints = [constraints, param.Gx_Ni{i}(k,:)*c_Ni{i} + sum_GxNorm2 ...
@@ -122,10 +121,10 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
         %% Equation 12
         for k=1:size(param.Gu_i{i},1) 
             sum_GuNorm2 = 0;
-            for j=1:length(neighbors)
+            for j=1:length(neighbors_i)
                 sum_GuNorm2 = sum_GuNorm2 + norm(param.Gu_i{i}(k,:)*Ki{i}*...
-                             (param.Wij{i}{neighbors(j)})'*...
-                              Pi{neighbors(j)}^(-1/2),2) * alpha(neighbors(j));
+                             (param.Wij{i}{neighbors_i(j)})'*...
+                              Pi{neighbors_i(j)}^(-1/2),2) * alpha(neighbors_i(j));
                 
             end
             constraints = [constraints, param.Gu_i{i}(k,:)*Ki{i}*c_Ni{i} + ...
@@ -140,7 +139,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
             % add a constraint for the neighbor state i to be equal to the
             % concatenated subsystem neighbor state vectors
             constraints = [constraints, X_Ni{i,n} == ...
-                                        reshape(X{n}(:,neighbors),[],1)];
+                                        reshape(X{n}(:,neighbors_i),[],1)];
            
             % Distributed Dynamics
             constraints = [constraints, X{n+1}(:,i) == param.A_Ni{i}*X_Ni{i,n}+...

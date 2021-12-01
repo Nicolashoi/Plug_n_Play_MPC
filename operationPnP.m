@@ -2,30 +2,29 @@ classdef operationPnP
     methods (Static)
         
         function obj = setPassiveControllers(obj)
-            M = obj.nb_subsystems;
-            for i= 1:M
+            for i= obj.activeDGU
                 [obj.Ki{i}, Di, obj.Pi{i}, Gamma_i] = controller_passivity(...
                                              obj.Ai{i}, obj.Bi{i},...
                                              obj.Ci{i}, obj.Fi{i}, ...
-                                             obj.L_tilde(i,:), obj.global_sysd.C);
+                                             obj.L_tilde, obj.global_sysd.C,i);
                 disp("Passive controller Gain"); disp(obj.Ki{i});
                 %disp(Gamma_i);
-                disp(Di);
+                disp(min(eig(Gamma_i)));
                
             end
-            for i=1:M
-                neighbors = sort([i; successors(obj.graph, i)]); 
-                K_block = blkdiag(obj.Ki{neighbors}); %block matrix of all neighbors K
-                obj.K_Ni{i} = K_block(neighbors==i,:); % extract only row corresponding to subsystem i
+            for i= obj.activeDGU
+                neighbors_i = sort([i; neighbors(obj.NetGraph, i)]); 
+                K_block = blkdiag(obj.Ki{neighbors_i}); %block matrix of all neighbors K
+                obj.K_Ni{i} = K_block(neighbors_i==i,:); % extract only row corresponding to subsystem i
             end
         end
                   % change this to return Ki only and assign it to good DGU
                   % network in main
-        function obj = redesignPhase(obj, idxDGUnew, procedure, activeDGUs)
+        function obj = redesignPhase(obj, oldGraph, idxDGU, procedure)
             if procedure == "add"
-                out_neighbors = sort([idxDGUnew;successors(obj.graph, idxDGUnew)]);  
+                out_neighbors = sort([idxDGU; neighbors(oldGraph, idxDGU)]);  
             elseif procedure == "delete"
-                out_neighbors = sort(successors(obj.graph, idxDGUnew));
+                out_neighbors = sort(neighbors(oldGraph, idxDGU));
             else
                 error("procedure not well defined: add or delete");
             end
@@ -34,15 +33,15 @@ classdef operationPnP
                  [obj.Ki{i}, Di, obj.Pi{i}, Gamma_i] = controller_passivity(...
                                                  obj.Ai{i}, obj.Bi{i},...
                                                  obj.Ci{i}, obj.Fi{i}, ...
-                                                 obj.L_tilde(i,:), obj.global_sysd.C);
+                                                 obj.L_tilde, obj.global_sysd.C, i);
                 sprintf("New passive controller gain of system %d", i)
                 disp(obj.Ki{i});
-                disp(Di);
+                disp(min(eig(Gamma_i)));
              end 
-             for i= activeDGUs
-                neighbors = sort([i; successors(obj.graph, i)]); 
-                K_block = blkdiag(obj.Ki{neighbors}); %block matrix of all neighbors K
-                obj.K_Ni{i} = K_block(neighbors==i,:); % extract only row corresponding to subsystem i
+             for i= obj.activeDGU
+                out_neighbors = sort([i; neighbors(obj.NetGraph, i)]); 
+                K_block = blkdiag(obj.Ki{out_neighbors}); %block matrix of all neighbors K
+                obj.K_Ni{i} = K_block(out_neighbors==i,:); % extract only row corresponding to subsystem i
              end
         end
         
@@ -113,7 +112,6 @@ end
 
 function [X,U] = mpc_DGU_tracking(controller, x0, length_sim,param, Q_Ni, Ri)
                                       
-        M = param.nb_subsystems; % number of subsystems
         X = cell(length_sim+1,1); % state at each timestep
         U = cell(length_sim,1); % control input at each timestep
         X{1} = horzcat(x0{:}); % initial state columns are subsystem i    
@@ -126,12 +124,12 @@ function [X,U] = mpc_DGU_tracking(controller, x0, length_sim,param, Q_Ni, Ri)
             if isnan(U{n})
                 error("Input to apply to controller is Nan at iteration %d",n);
             end
-            for i=1:M
-                neighbors = [i; successors(param.graph, i)]; % get neighbors
-                neighbors = sort(neighbors); % sorted neighbor list
+            for i=param.activeDGU
+                neighbors_i = [i; neighbors(param.NetGraph, i)]; % get neighbors
+                neighbors_i = sort(neighbors_i); % sorted neighbor list
                 % create neighbor state vector comprising the state of subsystem i
                 % and the state of it's neighbors (concatenated)
-                x_Ni = reshape(X{n}(:,neighbors),[],1); 
+                x_Ni = reshape(X{n}(:,neighbors_i),[],1); 
                 X{n+1}(:, i) = param.A_Ni{i}*x_Ni + param.Bi{i}*U{n}(:,i);
             end
         end  

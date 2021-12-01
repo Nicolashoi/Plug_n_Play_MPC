@@ -25,13 +25,14 @@ classdef DGU_network
        Pi
        %% Others
        Agraph
-       graph
+       NetGraph
        Rij_mat
        L_tilde
        Iti_ref
        di_ref
        nb_subsystems
        ni = 2 % size of subsystem state
+       nu = 1
        delta_config
        %% Constraints
        Vmax
@@ -62,31 +63,30 @@ classdef DGU_network
     
     methods
         % constructor
-        function obj = DGU_network(nb_subsystems, Rij_mat)
-            if nargin == 2
+        function obj = DGU_network(nb_subsystems)
+            if nargin == 1
                 obj.nb_subsystems = nb_subsystems;
-                obj.Rij_mat = Rij_mat;
-                obj.Agraph = Rij_mat;
-                nonzeroIdx = Rij_mat ~= 0;
-                obj.Agraph(nonzeroIdx) = 1./obj.Agraph(nonzeroIdx);  
-                obj.graph = digraph(obj.Agraph);
-                obj = obj.setSelectionMatrices(obj);
-                obj.L_tilde = diag(sum(obj.Agraph))-obj.Agraph;
+%                 obj.Rij_mat = Rij_mat;
+%                 obj.Agraph = Rij_mat;
+%                 nonzeroIdx = Rij_mat ~= 0;
+%                 obj.Agraph(nonzeroIdx) = 1./obj.Agraph(nonzeroIdx);  
+%                 obj.graph = digraph(obj.Agraph);
+%                 obj = obj.setSelectionMatrices(obj);
+%                 obj.L_tilde = diag(sum(obj.Agraph))-obj.Agraph;
             end
         end
-%         
-%         function obj = setActiveDGU(obj, Rij_mat, activeDGU)
-%             obj.activeDGU = activeDGU;
-%             obj.Rij_mat = Rij_mat;
-%             obj.Agraph = Rij_mat;
-%             nonzeroIdx = Rij_mat ~= 0;
-%             obj.Agraph(nonzeroIdx) = 1./obj.Agraph(nonzeroIdx);  
-%             obj.graph = digraph(obj.Agraph);
-%             obj = obj.setSelectionMatrices(obj);
-%             obj.L_tilde = diag(sum(obj.Agraph))-obj.Agraph;
-%             
-%        
-%         end
+        
+        function obj = setActiveDGU(obj, Rij_mat, activeDGU)
+            obj.activeDGU = activeDGU;
+            obj.Rij_mat = Rij_mat;
+            obj.Agraph = Rij_mat;
+            nonzeroIdx = Rij_mat ~= 0;
+            obj.Agraph(nonzeroIdx) = 1./obj.Agraph(nonzeroIdx);  
+            obj.NetGraph = graph(obj.Agraph);
+            obj = obj.setSelectionMatrices(obj);
+            obj.L_tilde = diag(sum(obj.Agraph))-obj.Agraph;
+        end
+        
         % initialize electrical parameters
         function obj = initElecParam(obj, idx_DGU, Vin, Vr, Il, Ri, Ct, Li, ...
                                      Vmax, Vmin, Imax, Imin)
@@ -103,8 +103,8 @@ classdef DGU_network
         end
         
         % initialize DGU dynamics
-        function obj = initDynamics(obj,idx_DGU)
-            for i = idx_DGU  % index of DGU (can be multiple) to get dynamics
+        function obj = initDynamics(obj)
+            for i = 1:obj.nb_subsystems  % index of DGU (can be multiple) to get dynamics
 %                 if isempty(obj.Ct) || isempty(obj.Vr)
 %                     error("Electrical parameters not correctly initialized or missing")
 %                 end
@@ -136,7 +136,7 @@ classdef DGU_network
                                                 
             function obj = setConstraints(obj, delta_config)
               obj.delta_config = delta_config;
-              for i= 1:obj.nb_subsystems
+              for i= obj.activeDGU
                 obj.Gx_i{i}=  [eye(obj.ni); -eye(obj.ni)];
                 obj.Gu_i{i} = [1;-1];
                 if ~obj.delta_config
@@ -153,8 +153,8 @@ classdef DGU_network
                     
                 end
               end 
-              for i= 1:obj.nb_subsystems
-                out_neighbors = sort([i;successors(obj.graph, i)]); % neighbor states of
+              for i= obj.activeDGU
+                out_neighbors = sort([i;neighbors(obj.NetGraph, i)]); % neighbor states of
                 obj.Gx_Ni{i} = blkdiag(obj.Gx_i{out_neighbors});
                 obj.fx_Ni{i} = vertcat(obj.fx_i{out_neighbors});
               end   
@@ -165,10 +165,13 @@ classdef DGU_network
        methods (Static)       
        function obj = setSelectionMatrices(obj)
            state_i = eye(obj.ni);
+           %N = length(obj.activeDGU)*obj.ni;
            N = obj.nb_subsystems*obj.ni;
-           for i = 1:obj.nb_subsystems
+           %for i = obj.activeDGU
+           for i=1:obj.nb_subsystems
                 obj.U{i} = [zeros(obj.ni,obj.ni*(i-1)), state_i, zeros(obj.ni,N-obj.ni*i)];
-                out_neighbors = sort([i;successors(obj.graph, i)]); % neighbor states of i
+                out_neighbors = sort([i;neighbors(obj.NetGraph, i)]); % neighbor states of i
+                %obj.W{i} = zeros(length(obj.activeDGU));
                 obj.W{i} = zeros(obj.nb_subsystems);
                 % put a 1 in diagonal of neighbor state
                 for j=1:length(out_neighbors)
@@ -179,8 +182,9 @@ classdef DGU_network
             end
             % Create Wij: extract state j from neighbor set of state i (j belongs to
             % xNi)
-            for i = 1:obj.nb_subsystems
-                out_neighbors = sort([i;successors(obj.graph, i)]); % neighbor states of i
+            %for i = obj.activeDGU
+            for i=1:obj.nb_subsystems
+                out_neighbors = sort([i;neighbors(obj.NetGraph, i)]); % neighbor states of i
                 for j = 1:length(out_neighbors)
                      obj.Wij{i}{out_neighbors(j)} = obj.U{out_neighbors(j)}*obj.W{i}';
                 end
@@ -188,14 +192,14 @@ classdef DGU_network
        end
        
        function plot_DGU_system(X,U, config, control_type, param)  
-             M = param.nb_subsystems;
+             M = length(param.activeDGU);
              lgd = cell(1,M);
              voltage = cell(1,M); current= cell(1,M); integrator = cell(1,M);
              if config == "GENERAL"
                 states = cell2mat(X); % extract position/velocity at each timesteps
                 k = M * param.ni;
                 j = 1;
-                for i = 1:M
+                for i = param.activeDGU
                     voltage{i} = states(j:k:end);
                     current{i} = states(j+1:k:end);
                     integrator{i} = states(j+2:k:end);
@@ -206,7 +210,7 @@ classdef DGU_network
             elseif config == "DISTRIBUTED"
                 k = param.ni;
                 states = cell2mat(X);
-                for i = 1:M
+                for i = param.activeDGU
                     voltage{i} = states(1:k:end,i);
                     current{i} = states(2:k:end,i);
                     integrator{i} = states(3:k:end,i);
@@ -224,7 +228,7 @@ classdef DGU_network
             title('Voltages');
             
             hold on
-            for i = 1:M
+            for i = param.activeDGU
                 plot(t,voltage{i});
             end
             legend(string(lgd));
@@ -235,7 +239,7 @@ classdef DGU_network
             subplot(2,1,2)
             title('Converter Currents');
             hold on
-            for i = 1:M
+            for i = param.activeDGU
                 plot(t, current{i});
             end
             legend(string(lgd));
@@ -247,7 +251,7 @@ classdef DGU_network
             figure()
             title("Controller  " + control_type)
             hold on
-            for i = 1:M
+            for i = param.activeDGU
                 plot(t(1:end-1), controller(i,:));
             end
             legend(string(lgd));
@@ -263,10 +267,10 @@ end  % end class
 
 function A_Ni = change_system_representation(Ai,Fi,Ci,Agraph)
             M = size(Ai,2); % number of subsystems    
-            G = digraph(Agraph);
+            G = graph(Agraph);
             A_Ni = cell(1,M);
             for i=1:M
-                out_neighbors = sort([i;successors(G, i)]);
+                out_neighbors = sort([i;neighbors(G, i)]);
                 Acell = cell(1,length(out_neighbors));
                 for j=1:length(out_neighbors)
                     if isequal(out_neighbors(j), i)

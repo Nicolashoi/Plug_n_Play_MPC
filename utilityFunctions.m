@@ -5,10 +5,10 @@ classdef utilityFunctions
 
         
       function [x0, Q_Ni, Ri] = tuningParam(dguNet, delta_config)
-            Q_Ni = cell(1,dguNet.nb_subsystems); 
-            Ri = cell(1,dguNet.nb_subsystems);
-            x0 = cell(1,dguNet.nb_subsystems);
-            for i = 1:dguNet.nb_subsystems
+            Q_Ni = cell(1,length(dguNet.activeDGU)); 
+            Ri = cell(1,length(dguNet.activeDGU));
+            x0 = cell(1,length(dguNet.activeDGU));
+            for i = dguNet.activeDGU
                 if delta_config
                     x0{i} = [50;5];
                 elseif ~delta_config
