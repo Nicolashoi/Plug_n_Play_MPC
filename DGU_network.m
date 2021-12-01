@@ -62,7 +62,7 @@ classdef DGU_network
     
     methods
         % constructor
-        function obj = DGU_network(nb_subsystems)
+        function obj = DGU_network(nb_subsystems, Rij_mat)
             if nargin == 2
                 obj.nb_subsystems = nb_subsystems;
                 obj.Rij_mat = Rij_mat;
