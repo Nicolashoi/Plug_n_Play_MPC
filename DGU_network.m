@@ -66,18 +66,14 @@ classdef DGU_network
         function obj = DGU_network(nb_subsystems)
             if nargin == 1
                 obj.nb_subsystems = nb_subsystems;
-%                 obj.Rij_mat = Rij_mat;
-%                 obj.Agraph = Rij_mat;
-%                 nonzeroIdx = Rij_mat ~= 0;
-%                 obj.Agraph(nonzeroIdx) = 1./obj.Agraph(nonzeroIdx);  
-%                 obj.graph = digraph(obj.Agraph);
-%                 obj = obj.setSelectionMatrices(obj);
-%                 obj.L_tilde = diag(sum(obj.Agraph))-obj.Agraph;
             end
         end
         
-        function obj = setActiveDGU(obj, Rij_mat, activeDGU)
+        function obj = setActiveDGU(obj, activeDGU)
             obj.activeDGU = activeDGU;
+        end
+        
+        function obj = setConnectionsGraph(obj, Rij_mat)
             obj.Rij_mat = Rij_mat;
             obj.Agraph = Rij_mat;
             nonzeroIdx = Rij_mat ~= 0;
@@ -153,7 +149,7 @@ classdef DGU_network
                     
                 end
               end 
-              for i= obj.activeDGU
+              for i= obj.activeDGU % neighbors constraints only for active DGUs
                 out_neighbors = sort([i;neighbors(obj.NetGraph, i)]); % neighbor states of
                 obj.Gx_Ni{i} = blkdiag(obj.Gx_i{out_neighbors});
                 obj.fx_Ni{i} = vertcat(obj.fx_i{out_neighbors});

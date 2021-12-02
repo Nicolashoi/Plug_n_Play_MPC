@@ -74,11 +74,37 @@ classdef operationPnP
         end  
     end
     
-    function Xs = findSteadyState(controller, x0, length_sim, paramBefore,...
-                                  paramAfter)
-                              
-                              
-                              
+    function [X, U, xs, us, alpha] = transitionPhase(x0, length_sim, paramBefore,...
+                                                     paramAfter, Qi, Ri, target)
+     [xs, us, alpha] = transition_compute_ss(horzcat(x0{:}), 10, paramBefore,...
+                            paramAfter, target);
+    
+     X = cell(length_sim+1,1); % state at each timestep
+     U = cell(length_sim,1); % control input at each timestep
+        %X{1} = horzcat(x0{:}); % initial state columns are subsystem i
+        % initialize all steps and states, otherwise yalmip returns NaN in
+        % non-activated DGU, resulting in NaN in the states which are given
+        % again to yalmip which does not support NaN as x0
+     X(:) = {horzcat(x0{:})}; 
+   
+    N = 10; % Horizon
+    clear regulation2ss
+    for n = 1:length_sim % loop over all subsystem
+            % control input is of size nu x M 
+            U{n} = regulation2ss(X{n}, N, paramBefore, xs, us, Qi, Ri); % get first control input
+            if isnan(U{n})
+                error("Input to apply to controller is Nan at iteration %d",n);
+            end
+            for i=paramBefore.activeDGU % Only modify the activated DGU
+                neighbors_i = [i; neighbors(paramBefore.NetGraph, i)]; % get neighbors
+                neighbors_i = sort(neighbors_i); % sorted neighbor list
+                % create neighbor state vector comprising the state of subsystem i
+                % and the state of it's neighbors (concatenated)
+                x_Ni = reshape(X{n}(:,neighbors_i),[],1); 
+                X{n+1}(:, i) = paramBefore.A_Ni{i}*x_Ni + paramBefore.Bi{i}*U{n}(:,i);
+            end
+    end  
+                                          
                               
     end
     

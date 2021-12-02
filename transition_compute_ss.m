@@ -1,5 +1,5 @@
 
-function [xs, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter, target)
+function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter, target)
     M = paramAfter.nb_subsystems;%length(param.activeDGU);
     %% create variables for optimizer
     nx = paramAfter.ni;
@@ -165,10 +165,11 @@ function [xs, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter, tar
     %% Create optimizer object 
     ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
     parameters_in = {X0};
-    solutions_out = {Xs, alpha}; 
+    solutions_out = {Xs, Us, alpha}; 
     optimizerObj = optimizer(constraints,objective,ops,parameters_in,solutions_out);
     optim_results = optimizerObj(x0);
     xs = optim_results{1};
-    alpha = optim_results{2};
+    us = optim_results{2};
+    alpha = optim_results{3};
     
 end
