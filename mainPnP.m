@@ -71,7 +71,7 @@ dguNet2.plot_DGU_system(Xscen2, Uscen2, config, control_type, dguNet2); % plot r
 dguDelete = 4;
 Rij_mat(dguDelete,:) = 0; Rij_mat(:,dguDelete) = 0;
 activeDGU_scen3 = [1 2 3 5 6]; 
-dguNet2 = dguNet2.SetActiveDGU(activeDGU_scen3);
+dguNet2 = dguNet2.setActiveDGU(activeDGU_scen3);
 dguNet3 = dguNet2;
 dguNet3 = dguNet3.setConnectionsGraph(Rij_mat);
 dguNet3 = dguNet3.initDynamics();
