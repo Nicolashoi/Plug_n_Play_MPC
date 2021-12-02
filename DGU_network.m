@@ -136,7 +136,7 @@ classdef DGU_network
                                                 
             function obj = setConstraints(obj, delta_config)
               obj.delta_config = delta_config;
-              for i= obj.activeDGU
+              for i= 1:obj.nb_subsystems
                 obj.Gx_i{i}=  [eye(obj.ni); -eye(obj.ni)];
                 obj.Gu_i{i} = [1;-1];
                 if ~obj.delta_config

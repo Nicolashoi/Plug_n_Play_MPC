@@ -57,9 +57,10 @@ dguNet2 = dguNet2.setConstraints(delta_config);
 
 dguNet2 = PnP.redesignPhase(dguNet2, dguNet2.NetGraph,dguPos, "add");
 % call again since dimension of Q_Ni change when adding/removing DGU
-[x0, Q_Ni, Ri] = utils.tuningParam2(dguNet2, delta_config); 
-[Xscen2,Uscen2] = PnP.mpc_DGU_tracking(@mpc_online_2, x0, length_sim, dguNet2, Q_Ni, Ri);
-dguNet2.plot_DGU_system(Xscen2, Uscen2, config, control_type, dguNet2); % plot results
+[x0, Q_Ni, Ri] = utils.tuningParam(dguNet2, delta_config); 
+[xs, alpha] = transition_compute_ss(horzcat(x0{:}), 10, dguNet, dguNet2, 'current state');
+% [Xscen2,Uscen2] = PnP.mpc_DGU_tracking(@mpc_online_2, x0, length_sim, dguNet2, Q_Ni, Ri);
+% dguNet2.plot_DGU_system(Xscen2, Uscen2, config, control_type, dguNet2); % plot results
 
 %% Remove DGU 4
 dguDelete = 4;
@@ -74,6 +75,7 @@ dguNet3 = dguNet3.setConstraints(delta_config);
 
 dguNet3 = PnP.redesignPhase(dguNet3, dguNet2.NetGraph, dguDelete, "delete");
 % call again since dimension of Q_Ni change when adding/removing DGU
-[x0, Q_Ni, Ri] = utils.tuningParam2(dguNet3, delta_config);
-[Xscen3,Uscen3] = PnP.mpc_DGU_tracking(@mpc_online_2, x0, length_sim, dguNet3, Q_Ni, Ri);
-dguNet3.plot_DGU_system(Xscen3, Uscen3, config, control_type, dguNet3); % plot results
+[x0, Q_Ni, Ri] = utils.tuningParam(dguNet3, delta_config);
+[xs, alpha] = transition_compute_ss(horzcat(x0{:}), 10, dguNet2, dguNet3, 'current state');
+% [Xscen3,Uscen3] = PnP.mpc_DGU_tracking(@mpc_online_2, x0, length_sim, dguNet3, Q_Ni, Ri);
+% dguNet3.plot_DGU_system(Xscen3, Uscen3, config, control_type, dguNet3); % plot results

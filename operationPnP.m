@@ -18,8 +18,7 @@ classdef operationPnP
                 obj.K_Ni{i} = K_block(neighbors_i==i,:); % extract only row corresponding to subsystem i
             end
         end
-                  % change this to return Ki only and assign it to good DGU
-                  % network in main
+                
         function obj = redesignPhase(obj, oldGraph, idxDGU, procedure)
             if procedure == "add"
                 out_neighbors = sort([idxDGU; neighbors(oldGraph, idxDGU)]);  
@@ -75,6 +74,13 @@ classdef operationPnP
         end  
     end
     
+    function Xs = findSteadyState(controller, x0, length_sim, paramBefore,...
+                                  paramAfter)
+                              
+                              
+                              
+                              
+    end
     
     function [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
                                           alpha, Q_Ni, Ri, Pi, Gamma_Ni)
