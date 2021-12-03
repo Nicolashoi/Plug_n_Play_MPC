@@ -28,6 +28,8 @@ classdef utilityFunctions
             headerlinesIn= 1;
             dataDGU = importdata(filename, delimiterIn, headerlinesIn);
             subsystems = dataDGU.data(1,1);
+            disp(dataDGU.colheaders);
+            disp(dataDGU.data);
             Vin = dataDGU.data(:,2);
             R = dataDGU.data(:,3);
             L = dataDGU.data(:,4);

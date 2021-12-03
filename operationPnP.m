@@ -7,9 +7,10 @@ classdef operationPnP
                                              obj.Ai{i}, obj.Bi{i},...
                                              obj.Ci{i}, obj.Fi{i}, ...
                                              obj.L_tilde, obj.global_sysd.C,i);
-                disp("Passive controller Gain"); disp(obj.Ki{i});
-                %disp(Gamma_i);
-                disp(min(eig(Gamma_i)));
+                sprintf("K%d", i)
+                disp(obj.Ki{i});
+                sprintf("P%d", i)
+                disp(obj.Pi{i});
                
             end
             for i= obj.activeDGU
