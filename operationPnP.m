@@ -74,22 +74,25 @@ classdef operationPnP
         end  
     end
     
-    function [X, U, xs, us, alpha] = transitionPhase(x0, length_sim, paramBefore,...
+    function [X, U, lenSim, xs, us, alpha] = transitionPhase(x0, paramBefore,...
                                                      paramAfter, Qi, Ri, target)
      [xs, us, alpha] = transition_compute_ss(horzcat(x0{:}), 10, paramBefore,...
                             paramAfter, target);
     
-     X = cell(length_sim+1,1); % state at each timestep
-     U = cell(length_sim,1); % control input at each timestep
+     %X = cell(length_sim+1,1); % state at each timestep
+     %U = cell(length_sim,1); % control input at each timestep
         %X{1} = horzcat(x0{:}); % initial state columns are subsystem i
         % initialize all steps and states, otherwise yalmip returns NaN in
         % non-activated DGU, resulting in NaN in the states which are given
         % again to yalmip which does not support NaN as x0
-     X(:) = {horzcat(x0{:})}; 
+     %X(:) = {horzcat(x0{:})}; 
+     X{1} = horzcat(x0{:});
    
     N = 10; % Horizon
     clear regulation2ss
-    for n = 1:length_sim % loop over all subsystem
+    n = 1;
+    while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 1e-3) || ...
+          any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 1e-3)    
             % control input is of size nu x M 
             U{n} = regulation2ss(X{n}, N, paramBefore, xs, us, Qi, Ri); % get first control input
             if isnan(U{n})
@@ -103,11 +106,13 @@ classdef operationPnP
                 x_Ni = reshape(X{n}(:,neighbors_i),[],1); 
                 X{n+1}(:, i) = paramBefore.A_Ni{i}*x_Ni + paramBefore.Bi{i}*U{n}(:,i);
             end
+            n = n+1;
     end  
+    lenSim = n;
          for i=1:paramBefore.nb_subsystems
             if ~any(i == paramBefore.activeDGU(:))
                 X{1}(:,i) = [NaN;NaN];
-                for n = 1:length_sim 
+                for n = 1:lenSim
                     X{n+1}(:,i) = [NaN;NaN];
                     U{n}(:,i) = NaN;
                 end

@@ -68,7 +68,7 @@ for i = activeDGU_scen1
 end
 %[xs, us, alpha] = transition_compute_ss(horzcat(x0{:}), 10, dguNet, dguNet2, 'current state');
 lenSim2_trans = 30;
-[X2_trans,U2_trans,xs,us,alpha]= PnP.transitionPhase(x0,lenSim2_trans, dguNet, dguNet2, Qi, Ri, 'reference');
+[X2_trans,U2_trans,lenSim, xs,us,alpha]= PnP.transitionPhase(x0, dguNet, dguNet2, Qi, Ri, 'reference');
 % [Xscen2,Uscen2] = PnP.mpc_DGU_tracking(@mpc_online_2, x0, length_sim, dguNet2, Q_Ni, Ri);
 lenSim2 = 30;
 dguNet2.Vr = linspace(49.95, 50.2, nb_subsystems);% references
@@ -78,7 +78,7 @@ for i = activeDGU_scen2
     x0{i} = X2_trans{end}(:,i);   
 end
 [X2, U2] = PnP.mpc_DGU_tracking(@mpc_online_2, x0, lenSim2, dguNet2, Q_Ni, Ri);
-dguNet2.plot_DGU_system([X;X2_trans;X2],[U;U2_trans;U2], config, control_type, dguNet2, simStart, activeDGU_scen2); % plot results
+dguNet2.plot_DGU_system([X;X2_trans';X2],[U;U2_trans';U2], config, control_type, dguNet2, simStart, activeDGU_scen2); % plot results
 
 %% Remove DGU 4
 simStart = 1;
@@ -103,11 +103,11 @@ end
 dguNet3.Vr = linspace(49.90, 50.4, nb_subsystems);% references
 dguNet3.Il = linspace(2.5, 7.5, nb_subsystems);
 dguNet3 = dguNet3.compute_Ref_Constraints(delta_config);
-[X3_trans,U3_trans,xs,us,alpha]= PnP.transitionPhase(x0,30, dguNet2, dguNet3, Qi, Ri, 'reference');
+[X3_trans,U3_trans,lenTrans, xs,us,alpha]= PnP.transitionPhase(x0, dguNet2, dguNet3, Qi, Ri, 'reference');
 for i = activeDGU_scen3
     x0{i} = X3_trans{end}(:,i);   
 end
 lenSim3 = 30;
 [X3, U3] = PnP.mpc_DGU_tracking(@mpc_online_2, x0, lenSim3, dguNet3, Q_Ni, Ri);
-dguNet3.plot_DGU_system([X2(end-10:end);X3_trans;X3],[U2(end-10:end); U3_trans; U3], config, ...
+dguNet3.plot_DGU_system([X2(end-10:end);X3_trans';X3],[U2(end-10:end); U3_trans'; U3], config, ...
                 control_type, dguNet3, simStart, activeDGU_scen2); % plot results
