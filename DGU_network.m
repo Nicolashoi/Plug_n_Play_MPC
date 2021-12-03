@@ -215,7 +215,7 @@ classdef DGU_network
                 controller = cell2mat(U');%first row u1, second row u2, column are timesteps
             elseif config == "DISTRIBUTED"
                 k = param.ni;
-                states = cell2mat(X);
+                states = cell2mat(X');
                 for i = dgu2plot
                     voltage{i} = states(1:k:end,i);
                     current{i} = states(2:k:end,i);
@@ -224,7 +224,7 @@ classdef DGU_network
                     end
                     lgd{i} = sprintf("DGU %d", i);
                 end
-                controller = cell2mat(U)'; %first row u1, second row u2, column are timesteps
+                controller = cell2mat(U')'; %first row u1, second row u2, column are timesteps
             else
                 error("not implemented configuration in plot states");
              end

@@ -78,7 +78,7 @@ for i = activeDGU_scen2
     x0{i} = X2_trans{end}(:,i);   
 end
 [X2, U2] = PnP.mpc_DGU_tracking(@mpc_online_2, x0, lenSim2, dguNet2, Q_Ni, Ri);
-dguNet2.plot_DGU_system([X;X2_trans';X2],[U;U2_trans';U2], config, control_type, dguNet2, simStart, activeDGU_scen2); % plot results
+dguNet2.plot_DGU_system([X,X2_trans,X2],[U, U2_trans, U2], config, control_type, dguNet2, simStart, activeDGU_scen2); % plot results
 
 %% Remove DGU 4
 simStart = 1;
@@ -109,5 +109,5 @@ for i = activeDGU_scen3
 end
 lenSim3 = 30;
 [X3, U3] = PnP.mpc_DGU_tracking(@mpc_online_2, x0, lenSim3, dguNet3, Q_Ni, Ri);
-dguNet3.plot_DGU_system([X2(end-10:end);X3_trans';X3],[U2(end-10:end); U3_trans'; U3], config, ...
+dguNet3.plot_DGU_system([X2(end-10:end), X3_trans, X3],[U2(end-10:end), U3_trans, U3], config, ...
                 control_type, dguNet3, simStart, activeDGU_scen2); % plot results

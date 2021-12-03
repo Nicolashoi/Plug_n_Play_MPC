@@ -157,9 +157,9 @@ end
 
 function [X,U] = mpc_DGU_tracking(controller, x0, length_sim,param, Q_Ni, Ri)
                                       
-        X = cell(length_sim+1,1); % state at each timestep
+        X = cell(1,length_sim+1,1); % state at each timestep
         %X(:) = {[0;0]};
-        U = cell(length_sim,1); % control input at each timestep
+        U = cell(1, length_sim); % control input at each timestep
         %X{1} = horzcat(x0{:}); % initial state columns are subsystem i
         % initialize all steps and states, otherwise yalmip returns NaN in
         % non-activated DGU, resulting in NaN in the states which are given
