@@ -104,7 +104,15 @@ classdef operationPnP
                 X{n+1}(:, i) = paramBefore.A_Ni{i}*x_Ni + paramBefore.Bi{i}*U{n}(:,i);
             end
     end  
-                                          
+         for i=1:paramBefore.nb_subsystems
+            if ~any(i == paramBefore.activeDGU(:))
+                X{1}(:,i) = [NaN;NaN];
+                for n = 1:length_sim 
+                    X{n+1}(:,i) = [NaN;NaN];
+                    U{n}(:,i) = NaN;
+                end
+            end
+        end                                   
                               
     end
     
@@ -169,7 +177,16 @@ function [X,U] = mpc_DGU_tracking(controller, x0, length_sim,param, Q_Ni, Ri)
                 x_Ni = reshape(X{n}(:,neighbors_i),[],1); 
                 X{n+1}(:, i) = param.A_Ni{i}*x_Ni + param.Bi{i}*U{n}(:,i);
             end
-        end  
+        end
+        for i=1:param.nb_subsystems
+            if ~any(i == param.activeDGU(:))
+                X{1}(:,i) = [NaN;NaN];
+                for n = 1:length_sim 
+                    X{n+1}(:,i) = [NaN;NaN];
+                    U{n}(:,i) = NaN;
+                end
+            end
+        end
     end
     
     end

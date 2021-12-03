@@ -11,7 +11,7 @@ classdef utilityFunctions
                 if delta_config
                     x0{i} = [50;5];
                 elseif ~delta_config
-                    x0{i} = [50;0]; % second state is Ii - Il
+                    x0{i} = [50;5-dguNet.Il(i)]; % second state is Ii - Il
                 else
                     error("config delta must be true or false");
                 end

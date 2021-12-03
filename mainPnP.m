@@ -17,8 +17,8 @@ Rij_mat(3,5) = 2.8; %Rij_mat(3,6) = 2;
 Rij_mat = Rij_mat + tril(Rij_mat',1);
 %% Instantiate DGU NETWORK
 dguNet = DGU_network(nb_subsystems);
-Vr = linspace(49.95, 50.2, nb_subsystems);% references
-Il = linspace(2.5, 7.5, nb_subsystems);
+Vr = linspace(49.975, 50.1, nb_subsystems);% references
+Il = linspace(3.5, 5.5, nb_subsystems);
 % set Electrical parameters and Dynamics for ALL the subsystems in the network
 for i=1:nb_subsystems
     dguNet = dguNet.initElecParam(i,Vin(i), Vr(i), Il(i), R(i), C(i), L(i), ...
@@ -35,17 +35,18 @@ plot(dguNet.NetGraph, 'EdgeLabel', dguNet.NetGraph.Edges.Weight, 'Marker', 's', 
 title("Initial Scenario: 5 DGUs active");
 dguNet = dguNet.initDynamics();
 delta_config = false;
-dguNet = dguNet.setConstraints(delta_config);
+dguNet = dguNet.compute_Ref_Constraints(delta_config);
 config = "DISTRIBUTED";
 control_type = "MPC online";
 [x0, Q_Ni, Ri] = utils.tuningParam(dguNet, delta_config);
-length_sim = 40;
+simStart = 1;
+length_sim = 30;
 dguNet = PnP.setPassiveControllers(dguNet);
 % Test reconf. terminal ingredients MPC with initial DGU network
 [X, U] = PnP.mpc_DGU_tracking(@mpc_online_2, x0, length_sim, dguNet, Q_Ni, Ri);
-dguNet.plot_DGU_system(X,U, config, control_type, dguNet); % plot results
-
+dguNet.plot_DGU_system(X,U, config, control_type, dguNet, simStart, 1:6); % plot results
 %% Scenario 2: Add a DGU to the network: connect DGU 6 to DGU 3
+simStart2 = simStart + length_sim + 1;
 dguPos = 6;
 activeDGU_scen2 = 1:1:6;
 Rij_mat(3,6) = 2.75; Rij_mat(6,3) = Rij_mat(3,6);  % New link
@@ -57,33 +58,56 @@ dguNet2 = dguNet2.setConnectionsGraph(Rij_mat);
 dguNet2 = dguNet2.initDynamics(); % recompute Dynamics (changed with integration of DGU 6)
 plot(dguNet2.NetGraph, 'EdgeLabel', dguNet2.NetGraph.Edges.Weight, 'Marker', 's', 'NodeColor','r', ...
       'MarkerSize', 7);
-dguNet2 = dguNet2.setConstraints(delta_config);
-
+dguNet2 = dguNet2.compute_Ref_Constraints(delta_config);
+%dguNet2 = dguNet2.setConstraints(delta_config);
 dguNet2 = PnP.redesignPhase(dguNet2, dguNet2.NetGraph,dguPos, "add");
 % call again since dimension of Q_Ni change when adding/removing DGU
 [x0, Q_Ni, Ri, Qi] = utils.tuningParam(dguNet2, delta_config); 
+for i = activeDGU_scen1
+    x0{i} = X{end}(:,i);   
+end
 %[xs, us, alpha] = transition_compute_ss(horzcat(x0{:}), 10, dguNet, dguNet2, 'current state');
-[Xscen2,Uscen2,xs,us,alpha]= PnP.transitionPhase(x0,30, dguNet, dguNet2, Qi, Ri, 'reference');
+lenSim2_trans = 30;
+[X2_trans,U2_trans,xs,us,alpha]= PnP.transitionPhase(x0,lenSim2_trans, dguNet, dguNet2, Qi, Ri, 'reference');
 % [Xscen2,Uscen2] = PnP.mpc_DGU_tracking(@mpc_online_2, x0, length_sim, dguNet2, Q_Ni, Ri);
-dguNet2.plot_DGU_system(Xscen2, Uscen2, config, control_type, dguNet2); % plot results
+lenSim2 = 30;
+dguNet2.Vr = linspace(49.95, 50.2, nb_subsystems);% references
+dguNet2.Il = linspace(2.5, 7.5, nb_subsystems);
+dguNet2 = dguNet2.compute_Ref_Constraints(delta_config);
+for i = activeDGU_scen2
+    x0{i} = X2_trans{end}(:,i);   
+end
+[X2, U2] = PnP.mpc_DGU_tracking(@mpc_online_2, x0, lenSim2, dguNet2, Q_Ni, Ri);
+dguNet2.plot_DGU_system([X;X2_trans;X2],[U;U2_trans;U2], config, control_type, dguNet2, simStart, activeDGU_scen2); % plot results
 
 %% Remove DGU 4
+simStart = 1;
 dguDelete = 4;
 Rij_mat(dguDelete,:) = 0; Rij_mat(:,dguDelete) = 0;
 activeDGU_scen3 = [1 2 3 5 6]; 
-dguNet2 = dguNet2.setActiveDGU(activeDGU_scen3);
+%dguNet2 = dguNet2.setActiveDGU(activeDGU_scen3);
 dguNet3 = dguNet2;
+dguNet3 = dguNet3.setActiveDGU(activeDGU_scen3);
 dguNet3 = dguNet3.setConnectionsGraph(Rij_mat);
 dguNet3 = dguNet3.initDynamics();
 plot(dguNet3.NetGraph, 'EdgeLabel', dguNet3.NetGraph.Edges.Weight, 'Marker', 's', 'NodeColor','r', ...
       'MarkerSize', 7);
-dguNet3 = dguNet3.setConstraints(delta_config);
+dguNet3 = dguNet3.compute_Ref_Constraints(delta_config);
 
 dguNet3 = PnP.redesignPhase(dguNet3, dguNet2.NetGraph, dguDelete, "delete");
 % call again since dimension of Q_Ni change when adding/removing DGU
-[x0, Q_Ni, Ri, Qi] = utils.tuningParam(dguNet3, delta_config);
-[Xscen3,Uscen3,xs,us,alpha]= PnP.transitionPhase(x0,30, dguNet2, dguNet3, Qi, Ri, 'reference');
-%[xs, alpha] = transition_compute_ss(horzcat(x0{:}), 10, dguNet2, dguNet3, 'current state');
-% [Xscen3,Uscen3] = PnP.mpc_DGU_tracking(@mpc_online_2, x0, length_sim, dguNet3, Q_Ni, Ri);
-% dguNet3.plot_DGU_system(Xscen3, Uscen3, config, control_type, dguNet3); % plot results
-dguNet3.plot_DGU_system(Xscen3, Uscen3, config, control_type, dguNet3); % plot results
+[~, Q_Ni, Ri, Qi] = utils.tuningParam(dguNet3, delta_config);
+for i = activeDGU_scen2
+    x0{i} = X2{end}(:,i);   
+end
+dguNet3.Vr = linspace(49.90, 50.4, nb_subsystems);% references
+dguNet3.Il = linspace(2.5, 7.5, nb_subsystems);
+dguNet3 = dguNet3.compute_Ref_Constraints(delta_config);
+[X3_trans,U3_trans,xs,us,alpha]= PnP.transitionPhase(x0,30, dguNet2, dguNet3, Qi, Ri, 'reference');
+for i = activeDGU_scen3
+    x0{i} = X3_trans{end}(:,i);   
+end
+lenSim3 = 30;
+[X3, U3] = PnP.mpc_DGU_tracking(@mpc_online_2, x0, lenSim3, dguNet3, Q_Ni, Ri);
+dguNet3.plot_DGU_system([X2(end-10:end);X3_trans;X3],[U2(end-10:end); U3_trans; U3], config, ...
+                control_type, dguNet3, simStart, activeDGU_scen2); % plot results

@@ -63,7 +63,7 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
                                        <= paramBefore.fu_i{i}];
             % Objective  
             if target == "reference"
-                objective = objective + norm(Xs(:,i)-paramBefore.Xref{i},2);
+                objective = objective + norm(Xs(:,i)-paramAfter.Xref{i},2);
             elseif target == "current state"
                 objective = objective + norm(Xs(:,i)-X0(:,i),2);
             else
