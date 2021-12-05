@@ -167,7 +167,13 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
     parameters_in = {X0};
     solutions_out = {Xs, Us, alpha}; 
     optimizerObj = optimizer(constraints,objective,ops,parameters_in,solutions_out);
-    optim_results = optimizerObj(x0);
+    %optim_results = optimizerObj(x0);
+    [optim_results, ~, ~, ~, ~, feasibility] =  optimizerObj(x0);
+    if ~(feasibility.problem)
+        disp("Feasible steady-state found");
+    else
+        error("Steady-state not found: P&P rejected");
+    end
     xs = optim_results{1};
     us = optim_results{2};
     alpha = optim_results{3};

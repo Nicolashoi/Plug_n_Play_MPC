@@ -110,6 +110,9 @@ classdef operationPnP
             n = n+1;
     end  
     lenSim = n;
+    if lenSim == 1
+        U{n} = us;
+    end
          for i=1:paramBefore.nb_subsystems
             if ~any(i == paramBefore.activeDGU(:))
                 X{1}(:,i) = [NaN;NaN];
