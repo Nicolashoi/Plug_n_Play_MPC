@@ -100,10 +100,7 @@ classdef DGU_network
         
         % initialize DGU dynamics
         function obj = initDynamics(obj)
-            for i = 1:obj.nb_subsystems  % index of DGU (can be multiple) to get dynamics
-%                 if isempty(obj.Ct) || isempty(obj.Vr)
-%                     error("Electrical parameters not correctly initialized or missing")
-%                 end
+            for i = 1:obj.nb_subsystems  
                 obj.Ac{i} = [0, 1/obj.Ct(i); -1/obj.Li(i), -obj.Ri(i)/obj.Li(i)];
                 obj.Bc{i} = [0; obj.Vin(i)/obj.Li(i)];
                 obj.Fc{i} = [1/obj.Ct(i); 0];
@@ -122,7 +119,7 @@ classdef DGU_network
                 A = A + F*obj.L_tilde*C;
                 sys = ss(A,B,C,[]);
                 obj.global_sysd = c2d(sys, obj.Ts); % Exact discretization of the global system
-            
+                
             % function to change representation to A_Ni
             obj.A_Ni = change_system_representation(obj.Ai, obj.Fi, obj.Ci, obj.Agraph);
             % function compute references here
@@ -136,143 +133,148 @@ classdef DGU_network
             obj = obj.setConstraints(obj, delta_config);
            
         end
-   
-                                         
-                                                                                            
-        end
+        
+    end % end methods
 
-       methods (Static)       
-       function obj = setSelectionMatrices(obj)
-           state_i = eye(obj.ni);
-           %N = length(obj.activeDGU)*obj.ni;
-           N = obj.nb_subsystems*obj.ni;
-           %for i = obj.activeDGU
-           for i=1:obj.nb_subsystems
-                obj.U{i} = [zeros(obj.ni,obj.ni*(i-1)), state_i, zeros(obj.ni,N-obj.ni*i)];
-                out_neighbors = sort([i;neighbors(obj.NetGraph, i)]); % neighbor states of i
-                %obj.W{i} = zeros(length(obj.activeDGU));
-                obj.W{i} = zeros(obj.nb_subsystems);
-                % put a 1 in diagonal of neighbor state
-                for j=1:length(out_neighbors)
-                    obj.W{i}(out_neighbors(j),out_neighbors(j)) = 1;
-                end
-                obj.W{i}= kron(obj.W{i}, state_i); % each subsystem has size mi
-                obj.W{i}(all(obj.W{i}==0,2),:)=[]; % remove all zero rows
-            end
-            % Create Wij: extract state j from neighbor set of state i (j belongs to
-            % xNi)
-            %for i = obj.activeDGU
-            for i=1:obj.nb_subsystems
-                out_neighbors = sort([i;neighbors(obj.NetGraph, i)]); % neighbor states of i
-                for j = 1:length(out_neighbors)
-                     obj.Wij{i}{out_neighbors(j)} = obj.U{out_neighbors(j)}*obj.W{i}';
-                end
-            end
-       end
-       
-          function obj = setConstraints(obj, delta_config)
-              obj.delta_config = delta_config;
-              for i= 1:obj.nb_subsystems
-                obj.Gx_i{i}=  [eye(obj.ni); -eye(obj.ni)];
-                obj.Gu_i{i} = [1;-1];
-                if ~obj.delta_config
-                    obj.Xref{i} = [obj.Vr(i); obj.Iti_ref(i)-obj.Il(i)];
-                    obj.fx_i{i} = [obj.Vmax(i); obj.Imax(i)-obj.Il(i);...
-                                    -obj.Vmin(i); -obj.Imin(i)+obj.Il(i)];
-                    obj.fu_i{i} = [1;0];            
-                elseif obj.delta_config
-                    obj.Xref{i} = [obj.Vr(i); obj.Iti_ref(i)];
-                    obj.Uref{i} = obj.di_ref(i);
-                    obj.fx_i{i} = [obj.Vmax(i); obj.Imax(i); -obj.Vmin(i); ...
-                              -obj.Imin(i)] + [-obj.Xref{i}; obj.Xref{i}];
-                    obj.fu_i{i} = [1;0]+[-obj.Uref{i}; obj.Uref{i}];
-                    
-                end
-              end 
-              for i= obj.activeDGU % neighbors constraints only for active DGUs
-                out_neighbors = sort([i;neighbors(obj.NetGraph, i)]); % neighbor states of
-                obj.Gx_Ni{i} = blkdiag(obj.Gx_i{out_neighbors});
-                obj.fx_Ni{i} = vertcat(obj.fx_i{out_neighbors});
-              end   
-          end    
-             
-       function plot_DGU_system(X,U, config, control_type, param, simStart,...
-                                dgu2plot)  
-             M = length(dgu2plot);
-             lgd = cell(1,M);
-             voltage = cell(1,M); current= cell(1,M); integrator = cell(1,M);
-             if config == "GENERAL"
-                states = cell2mat(X); % extract position/velocity at each timesteps
-                k = M * param.ni;
-                j = 1;
-                for i = dgu2plot
-                    voltage{i} = states(j:k:end);
-                    current{i} = states(j+1:k:end);
-                    integrator{i} = states(j+2:k:end);
-                    j = j+param.ni;
-                    lgd{i} = sprintf("DGU %d", i);
-                end
-                controller = cell2mat(U');%first row u1, second row u2, column are timesteps
-            elseif config == "DISTRIBUTED"
-                k = param.ni;
-                states = cell2mat(X');
-                for i = dgu2plot
-                    voltage{i} = states(1:k:end,i);
-                    current{i} = states(2:k:end,i);
-                    if ~param.delta_config
-                        current{i} = current{i}+ repmat(param.Il(i), size(current{i}));
+    methods (Static)       
+        function obj = setSelectionMatrices(obj)
+               state_i = eye(obj.ni);
+               N = obj.nb_subsystems*obj.ni;
+               for i=1:obj.nb_subsystems
+                    obj.U{i} = [zeros(obj.ni,obj.ni*(i-1)), state_i, zeros(obj.ni,N-obj.ni*i)];
+                    out_neighbors = sort([i;neighbors(obj.NetGraph, i)]); % neighbor states of i
+                    obj.W{i} = zeros(obj.nb_subsystems);
+                    % put a 1 in diagonal of neighbor state
+                    for j=1:length(out_neighbors)
+                        obj.W{i}(out_neighbors(j),out_neighbors(j)) = 1;
                     end
-                    lgd{i} = sprintf("DGU %d", i);
+                    obj.W{i}= kron(obj.W{i}, state_i); % each subsystem has size mi
+                    obj.W{i}(all(obj.W{i}==0,2),:)=[]; % remove all zero rows
                 end
-                controller = cell2mat(U')'; %first row u1, second row u2, column are timesteps
-            else
-                error("not implemented configuration in plot states");
-             end
-            %sim_steps = 1:1:length(voltage{1});
-            sim_stepsX = simStart:length(X);
-            tx = param.Ts .* sim_stepsX;
-            sim_stepsU = simStart:length(U);
-            tu = param.Ts .* sim_stepsU;
-            figure()
-            sgtitle(control_type);
-            subplot(2,1,1)
-            title('Voltages');
-            
-            hold on
-            for i = dgu2plot
-                plot(tx,voltage{i});
-            end
-            legend(string(lgd(dgu2plot)));
-            grid on
-            ylabel('[V]');
-            xlabel('[s]');
-            hold off
-            subplot(2,1,2)
-            title('Converter Currents');
-            hold on
-            for i = dgu2plot
-                plot(tx, current{i});
-            end
-            legend(string(lgd(dgu2plot)));
-            ylabel('[A]');
-            grid on
-            xlabel('[s]');
-            hold off
-
-            figure()
-            title("Controller  " + control_type)
-            hold on
-            for i = dgu2plot
-                plot(tu, controller(i,:));
-            end
-            legend(string(lgd(dgu2plot)));
-            xlabel('[s]');
-            ylabel('Duty cycle');
-            grid on
-            hold off
-       end
+                % Create Wij: extract state j from neighbor set of state i (j belongs to
+                % xNi)
+                for i=1:obj.nb_subsystems
+                    out_neighbors = sort([i;neighbors(obj.NetGraph, i)]); % neighbor states of i
+                    for j = 1:length(out_neighbors)
+                         obj.Wij{i}{out_neighbors(j)} = obj.U{out_neighbors(j)}*obj.W{i}';
+                    end
+                end
+        end
        
-    end  % end methods
+        function obj = setConstraints(obj, delta_config)
+          obj.delta_config = delta_config;
+          for i= 1:obj.nb_subsystems
+            obj.Gx_i{i}=  [eye(obj.ni); -eye(obj.ni)];
+            obj.Gu_i{i} = [1;-1];
+            if ~obj.delta_config
+                obj.Xref{i} = [obj.Vr(i); obj.Iti_ref(i)-obj.Il(i)];
+                obj.fx_i{i} = [obj.Vmax(i); obj.Imax(i)-obj.Il(i);...
+                                -obj.Vmin(i); -obj.Imin(i)+obj.Il(i)];
+                obj.fu_i{i} = [1;0];            
+            elseif obj.delta_config
+                obj.Xref{i} = [obj.Vr(i); obj.Iti_ref(i)];
+                obj.Uref{i} = obj.di_ref(i);
+                obj.fx_i{i} = [obj.Vmax(i); obj.Imax(i); -obj.Vmin(i); ...
+                          -obj.Imin(i)] + [-obj.Xref{i}; obj.Xref{i}];
+                obj.fu_i{i} = [1;0]+[-obj.Uref{i}; obj.Uref{i}];
+
+            end
+          end 
+          for i= obj.activeDGU % neighbors constraints only for active DGUs
+            out_neighbors = sort([i;neighbors(obj.NetGraph, i)]); % neighbor states of
+            obj.Gx_Ni{i} = blkdiag(obj.Gx_i{out_neighbors});
+            obj.fx_Ni{i} = vertcat(obj.fx_i{out_neighbors});
+          end   
+        end    
+             
+        function plot_DGU_system(X,U, config, control_type, param, simStart,...
+                            dgu2plot, annot2plot)  
+         M = length(dgu2plot);
+         lgd = cell(1,M);
+         voltage = cell(1,M); current= cell(1,M); integrator = cell(1,M);
+         if config == "GENERAL" % not distributed: plot states for general sys
+            states = cell2mat(X); % extract position/velocity at each timesteps
+            k = M * param.ni;
+            j = 1;
+            for i = dgu2plot
+                voltage{i} = states(j:k:end);
+                current{i} = states(j+1:k:end);
+                integrator{i} = states(j+2:k:end);
+                j = j+param.ni;
+                lgd{i} = sprintf("DGU %d", i);
+            end
+            controller = cell2mat(U');%first row u1, second row u2, column are timesteps
+        elseif config == "DISTRIBUTED"
+            k = param.ni;
+            states = cell2mat(X');
+            for i = dgu2plot
+                voltage{i} = states(1:k:end,i);
+                current{i} = states(2:k:end,i);
+                if ~param.delta_config
+                    current{i} = current{i}+ repmat(param.Il(i), size(current{i}));
+                end
+                lgd{i} = sprintf("DGU %d", i);
+            end
+            controller = cell2mat(U')'; %first row u1, second row u2, column are timesteps
+        else
+            error("not implemented configuration in plot states");
+         end
+ 
+        sim_stepsX = simStart:length(X);
+        tx = param.Ts .* sim_stepsX; % x-time vector for states in seconds
+        sim_stepsU = simStart:length(U);
+        tu = param.Ts .* sim_stepsU; % x-time vector for controller in seconds
+        figure()
+        sgtitle(control_type);
+        subplot(2,1,1)
+        % --VOLTAGES--%
+        title('Voltages');
+        hold on
+        for i = dgu2plot
+            plot(tx,voltage{i});
+        end
+        if exist('annot2plot') && ~isempty(annot2plot)
+            xline(annot2plot.array, '-', annot2plot.text);
+        end
+        legend(string(lgd(dgu2plot)));
+        grid on
+        ylabel('[V]');
+        xlabel('[s]');
+        hold off
+        subplot(2,1,2)
+        %--CURRENTS--%
+        title('Converter Currents');
+        hold on
+        for i = dgu2plot
+            plot(tx, current{i});
+        end
+        if exist('annot2plot') && ~isempty(annot2plot)
+            xline(annot2plot.array, '-', annot2plot.text);
+        end
+        legend(string(lgd(dgu2plot)));
+        ylabel('[A]');
+        grid on
+        xlabel('[s]');
+        hold off
+
+        figure()
+        %--DUTY CYCLE--%
+        title("Controller  " + control_type)
+        hold on
+        for i = dgu2plot
+            plot(tu, controller(i,:));
+        end
+        if exist('annot2plot') && ~isempty(annot2plot)
+            xline(annot2plot.array, '-', annot2plot.text);
+        end
+        legend(string(lgd(dgu2plot)));
+        xlabel('[s]');
+        ylabel('Duty cycle');
+        grid on
+        hold off
+        end
+       
+    end  % end static methods
 end  % end class
 
 
@@ -298,8 +300,6 @@ function A_Ni = change_system_representation(Ai,Fi,Ci,Agraph)
 end
 
 function [di_ref, Iti_ref] = compute_ref(M, Agraph, Vr, Il, Rij, R, Vin)
-            %load('system/DGU_electrical_param.mat')
-            %M = nb_subsystems;
             di_ref = zeros(1,M); Iti_ref = zeros(1,M);
             G = digraph(Agraph);
             for i= 1:M

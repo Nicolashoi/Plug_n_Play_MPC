@@ -1,7 +1,7 @@
 
 classdef utilityFunctions
     methods (Static)
-        
+          % Compute initial state and matrices 
           function [x0, Q_Ni, Ri, Qi] = tuningParam(dguNet, delta_config)
             Q_Ni = cell(1,dguNet.nb_subsystems); 
             Qi = cell(1, dguNet.nb_subsystems);
@@ -22,7 +22,7 @@ classdef utilityFunctions
             end
           end  
             
-          
+        % Import parameters for the DGU system from a .txt file  
         function [subsystems, Vin, R, L, C, Vmax, Vmin, Imax, Imin] = importData(filename)
             delimiterIn = ';';
             headerlinesIn= 1;
