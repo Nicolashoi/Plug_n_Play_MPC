@@ -26,6 +26,8 @@ function [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, pa
         Pi{i} = inv(value(Ei{i}));
         P_Ni{i} = inv(value(E_Ni{i}));
         K_Ni{i} = value(Y_Ni{i})*P_Ni{i};
+        sprintf("Local feedback control laws K_N%d", i)
+        disp(K_Ni{i});
         Gamma_Ni{i} = P_Ni{i}*value(H_Ni{i}) * P_Ni{i};
     end
 end

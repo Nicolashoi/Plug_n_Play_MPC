@@ -21,7 +21,7 @@ classdef SimFunctionsPnP
         end
         
         
-        %% ----------------------- SIMPLE SIMULATIONS -------------------------%
+        %% -------------SIMPLE SIMULATIONS IN DELTA FORMULATION----------------%
         % -------- SIMULATION OF DGU NETWORK FOR LOCAL CONTROLLERS Ki ---------%
         function [X,U] = sim_DGU_distributed(x0, length_sim, param, K)
             M = param.nb_subsystems; % number of subsystems
@@ -191,10 +191,10 @@ classdef SimFunctionsPnP
                                           alpha, Q_Ni, Ri, Pi, Gamma_Ni)
                                       
             M = param.nb_subsystems; % number of subsystems
-            dX = cell(length_sim+1,1); % state at each timestep
-            dU = cell(length_sim,1); % control input at each timestep
-            X = cell(length_sim+1,1); % state at each timestep
-            U = cell(length_sim,1); % control input at each timestep
+            dX = cell(1,length_sim+1); % state at each timestep
+            dU = cell(1,length_sim); % control input at each timestep
+            X = cell(1,length_sim+1); % state at each timestep
+            U = cell(1,length_sim); % control input at each timestep
             X{1} = horzcat(x0{:}); % initial state columns are subsystem i    
             dX{1} = X{1} - horzcat(param.Xref{:});
             N = 10; % Horizon
@@ -207,11 +207,11 @@ classdef SimFunctionsPnP
                     error("Input to apply to controller is Nan at iteration %d",n);
                 end
                 for i=1:M
-                    neighbors = [i; successors(param.graph, i)]; % get neighbors
-                    neighbors = sort(neighbors); % sorted neighbor list
+                    out_neighbors = [i; neighbors(param.NetGraph, i)]; % get neighbors
+                    out_neighbors = sort(out_neighbors); % sorted neighbor list
                     % create neighbor state vector comprising the state of subsystem i
                     % and the state of it's neighbors (concatenated)
-                    x_Ni = reshape(dX{n}(:,neighbors),[],1); 
+                    x_Ni = reshape(dX{n}(:,out_neighbors),[],1); 
                     % Apply first input to the system and get next state
                     dX{n+1}(:, i) = param.A_Ni{i}*x_Ni + param.Bi{i}*dU{n}(:,i);
                     X{n+1}(:,i) = dX{n+1}(:,i) + param.Xref{i};

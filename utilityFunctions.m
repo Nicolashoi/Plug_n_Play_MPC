@@ -9,7 +9,9 @@ classdef utilityFunctions
             x0 = cell(1,dguNet.nb_subsystems);
             for i = 1:dguNet.nb_subsystems
                 if delta_config
-                    x0{i} = [50;5];
+                    x0{i} = [50;5]; % initial condition in normal coordinates
+                    % delta formulation carried in the simulation functions
+                    % directly
                 elseif ~delta_config
                     x0{i} = [50;5-dguNet.Il(i)]; % second state is Ii - Il
                 else
@@ -41,20 +43,54 @@ classdef utilityFunctions
         end 
        
         %% Compute Finite Cost given state, input, Q and R
-        function cost = compute_QR_cost(X,U,Q,R, config)
+        function cost = compute_QR_cost(X,U,Q,R, config, Xref, Uref)
             cost = 0;
-            if config == "GENERAL"
-                for i=1:length(X)-1
-                    cost = cost + X{i}'*Q*X{i} + U{i}'*R*U{i};
+            xref = vertcat(Xref{:});
+            uref = vertcat(Uref{:});
+            for k=1:length(X)-1
+                if config == "DISTRIBUTED"
+                    x = reshape(X{k},[],1); u = U{k}';
+                    cost = cost + (x-xref)'*Q*(x-xref) + ...
+                                   (u-uref)'*R*(u-uref);
+                elseif config == "GENERAL"
+                    cost = cost + (X{k}-xref)'*Q*(X{k}-xref) + ...
+                                   (U{k}-uref)'*R*(U{k}-uref);
+                else 
+                    disp("WARNING: wrong config, choose general or distributed");
                 end
+                    
+            end
+        end
+        
+        %% COmpute tracking error magnitude
+        function err = tracking_error(X,U, config, param, dgu2compute)
+            if config == "GENERAL" % not distributed: plot states for general sys
+                states = cell2mat(X); % extract position/velocity at each timesteps
+                k = M * param.ni;
+                j = 1;
+                for i = dgu2compute
+                    voltage{i} = states(j:k:end);
+                    current{i} = states(j+1:k:end);
+                    integrator{i} = states(j+2:k:end);
+                    j = j+param.ni;
+
+                end
+                controller = cell2mat(U');%first row u1, second row u2, column are timesteps
             elseif config == "DISTRIBUTED"
-                for i=1:length(X)-1
-                    x = reshape(X{i},[],1); u = U{i}';
-                    cost = cost + x'*Q*x + u'*R*u;
+                k = param.ni;
+                states = cell2mat(X');
+                for i = dgu2compute
+                    voltage{i} = states(1:k:end,i);
+                    current{i} = states(2:k:end,i);
+                    if ~param.delta_config
+                        current{i} = current{i}+ repmat(param.Il(i), size(current{i}));
+                    end
                 end
-            else
-                error("wrong configuration, choose between general or distributed");
-            end   
+                controller = cell2mat(U')'; %first row u1, second row u2, column are timesteps
+            end
+                
+            % Compute tracking error here
+            
         end
        
     end % end methods

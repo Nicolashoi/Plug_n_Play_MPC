@@ -4,7 +4,7 @@
 % BRIEF:
 %  
 
-function [Pi, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, param, passivity)
+function [Pi, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, param, passivity)
     % system choice
     M = param.nb_subsystems;
     if ~passivity
@@ -15,16 +15,16 @@ function [Pi, Gamma_Ni, alpha_i] = offline_distributed_MPC(Q_Ni, Ri, param, pass
         for i=1:M
             [Ki{i}, ~, Pi{i}, Gamma_i{i}] = controller_passivity(param.Ai{i},...
                                             param.Bi{i}, param.Ci{i},param.Fi{i},...
-                                            param.L_tilde, param.global_sysd.C);
+                                            param.L_tilde, param.global_sysd.C, i);
             sprintf("passivity gain of system %d is", i)
             disp(Ki{i});
         end
         for i=1:M
-            neighbors = sort([i; successors(param.graph, i)]); 
-            P_Ni{i} = blkdiag(Pi{neighbors}); 
-            Gamma_Ni{i} = blkdiag(Gamma_i{neighbors});
-            K_block = blkdiag(Ki{neighbors}); %block matrix of all neighbors K
-            K_Ni{i} = K_block(neighbors==i,:); % extract only row corresponding to subsystem i
+            out_neighbors = sort([i; neighbors(param.NetGraph, i)]); 
+            P_Ni{i} = blkdiag(Pi{out_neighbors}); 
+            Gamma_Ni{i} = blkdiag(Gamma_i{out_neighbors});
+            K_block = blkdiag(Ki{out_neighbors}); %block matrix of all neighbors K
+            K_Ni{i} = K_block(out_neighbors==i,:); % extract only row corresponding to subsystem i
         end
     else
        error("ERROR: chose if passivity is to be used or not"); 

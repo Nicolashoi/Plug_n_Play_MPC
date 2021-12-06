@@ -38,15 +38,15 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, Pi, N, param)
     for i=1:M % loop over all subsystems
         n_Ni = size(param.A_Ni{i},2); % get size of set of Neighbors
         % obtain sorted list of neighbors of system i
-        neighbors = [i; successors(param.graph, i)];
-        neighbors = sort(neighbors);
+        out_neighbors = sort([i; neighbors(param.NetGraph, i)]);
+       
        
         for k = 1:N-1 % Planning Horizon Loop
             X_Ni{i,k} = sdpvar(n_Ni,1,'full'); % neighbor state i
             % add a constraint for the neighbor state i to be equal to the
             % concatenated subsystem neighbor state vectors
             constraints = [constraints, X_Ni{i,k} == ...
-                                        reshape(X{k}(:,neighbors),[],1)];
+                                        reshape(X{k}(:,out_neighbors),[],1)];
             % Distributed Dynamics
             constraints = [constraints, X{k+1}(:,i) == param.A_Ni{i}*X_Ni{i,k}+...
                                                        param.Bi{i}*U{k}(:,i)];
