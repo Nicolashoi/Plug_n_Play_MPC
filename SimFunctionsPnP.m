@@ -1,6 +1,6 @@
-classdef operationPnP
+classdef SimFunctionsPnP
     methods (Static)
-        % Compute passive gains
+        %% ------------------ COMPUTE PASSIVE GAINS ---------------------------%
         function obj = setPassiveControllers(obj)
             for i= obj.activeDGU
                 [obj.Ki{i}, Di, obj.Pi{i}, Gamma_i] = controller_passivity(...
@@ -20,7 +20,59 @@ classdef operationPnP
             end
         end
         
-        % redesing of neighbor set passive gains        
+        
+        %% ----------------------- SIMPLE SIMULATIONS -------------------------%
+        % -------- SIMULATION OF DGU NETWORK FOR LOCAL CONTROLLERS Ki ---------%
+        function [X,U] = sim_DGU_distributed(x0, length_sim, param, K)
+            M = param.nb_subsystems; % number of subsystems
+            X = cell(1,length_sim+1,1); % state at each timestep
+            U = cell(1, length_sim); % control input at each timestep
+            X{1} = horzcat(x0{:}); % columns are subsystem i
+
+            if ~param.delta_config
+                error("Switch to delta configuration to use Passivity to converge to ref");
+            end
+
+            dX = cell(length_sim+1,1); % state at each timestep
+            dU = cell(length_sim,1); % control input at each timestep
+            dX{1} = X{1} - horzcat(param.Xref{:});
+
+            for n=1:length_sim
+                 for i=1:M
+                    dU{n}(:,i) = K{i}*dX{n}(:,i);
+                    U{n} = dU{n} + param.Uref{i};
+                    out_neighbors = sort([i; neighbors(param.NetGraph, i)]); % get neighbors
+                    % create neighbor state vector comprising the state of subsystem i
+                    % and the state of it's neighbors (concatenated)
+                    x_Ni = reshape(dX{n}(:,out_neighbors),[],1); 
+                    % Apply first input to the system and get next state
+                    dX{n+1}(:, i) = param.A_Ni{i}*x_Ni + param.Bi{i}*dU{n}(:,i);
+                    X{n+1}(:,i) = dX{n+1}(:,i) + param.Xref{i};
+                 end
+            end  
+        end
+        
+        % -------- SIMULATION OF DGU NETWORK FOR GLOBAL CONTROLLER K ---------%
+        function [X,U] = sim_global_DGU(x0, length_sim, param, K)
+            Ad = param.global_sysd.A; Bd = param.global_sysd.B; 
+            X = cell(length_sim+1,1); % state at each timestep
+            U = cell(length_sim,1); % control input at each timestep
+            X{1} = vertcat(x0{:}); % global initial state, vector Mx1
+            if ~param.delta_config
+                error("Switch to delta configuration to use Passivity to converge to ref");
+            end
+            dX = cell(length_sim+1,1); % state at each timestep
+            dU = cell(length_sim,1); % control input at each timestep
+            dX{1} = X{1} - vertcat(param.Xref{:});
+            for n=1:length_sim
+                dU{n} = K*dX{n};
+                U{n} = dU{n} + vertcat(param.Uref{:});
+                dX{n+1}= Ad*dX{n}+ Bd*dU{n};
+                X{n+1} = dX{n+1} + vertcat(param.Xref{:});
+            end
+        end
+        %% ------------------------ P&P OPERATIONS------------------------------
+        %-------------------------- REDESIGN PHASE-----------------------------%       
         function obj = redesignPhase(obj, oldGraph, idxDGU, procedure)
             if procedure == "add"
                 out_neighbors = sort([idxDGU; neighbors(oldGraph, idxDGU)]);  
@@ -48,14 +100,14 @@ classdef operationPnP
         end
         
     
-    
+        %-----------------------TRANSITION PHASE-------------------------------%
         function [X, U, lenSim, xs, us, alpha] = transitionPhase(x0, paramBefore,...
                                                          paramAfter, Qi, Ri, target)
-            % -- COMPUTE STEADY STATE --%
+            % compute steady state
             [xs, us, alpha] = transition_compute_ss(horzcat(x0{:}), 10, paramBefore,...
                                     paramAfter, target);
 
-            % -- REGULATION MPC TO STEADY STATE--%
+            % MPC REGULATION to steady state
             X{1} = horzcat(x0{:});
             N = 10; % Horizon for regulation
             clear regulation2ss
@@ -92,7 +144,8 @@ classdef operationPnP
             end                                   
         end
         
-        % -- TRACKING MPC WITH RECONFIGURABLE TERMINAL INGREDIENTS --%
+        %% ------------------------- MPC CONTROLLERS--------------------------%%
+        %----- TRACKING MPC WITH RECONFIGURABLE TERMINAL INGREDIENTS ----------%
         function [X,U] = mpc_DGU_tracking(controller, x0, length_sim,param, Q_Ni, Ri)
                                       
             X = cell(1,length_sim+1,1); % state at each timestep
@@ -133,7 +186,7 @@ classdef operationPnP
             end
         end
         
-
+        %----- MPC DELTA FORMULATION WITH OFFLINE TERMINAL INGREDIENTS --------%
         function [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
                                           alpha, Q_Ni, Ri, Pi, Gamma_Ni)
                                       
