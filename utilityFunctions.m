@@ -62,35 +62,22 @@ classdef utilityFunctions
             end
         end
         
-        %% COmpute tracking error magnitude
+        %% Compute tracking error magnitude
         function err = tracking_error(X,U, config, param, dgu2compute)
-            if config == "GENERAL" % not distributed: plot states for general sys
-                states = cell2mat(X); % extract position/velocity at each timesteps
-                k = M * param.ni;
-                j = 1;
-                for i = dgu2compute
-                    voltage{i} = states(j:k:end);
-                    current{i} = states(j+1:k:end);
-                    integrator{i} = states(j+2:k:end);
-                    j = j+param.ni;
-
-                end
-                controller = cell2mat(U');%first row u1, second row u2, column are timesteps
-            elseif config == "DISTRIBUTED"
-                k = param.ni;
-                states = cell2mat(X');
-                for i = dgu2compute
-                    voltage{i} = states(1:k:end,i);
-                    current{i} = states(2:k:end,i);
-                    if ~param.delta_config
-                        current{i} = current{i}+ repmat(param.Il(i), size(current{i}));
-                    end
-                end
-                controller = cell2mat(U')'; %first row u1, second row u2, column are timesteps
-            end
-                
             % Compute tracking error here
-            
+            err = 0;
+            for k = 1:length(X)-1
+                if config == "DISTRIBUTED"
+                    err = err + sum((X{k}(:, dgu2compute)- ...
+                                horzcat(param.Xref{dgu2compute})).^2, 'all')...
+                          + sum((U{k}(dgu2compute)'- ...
+                                 vertcat(param.Uref{dgu2compute})).^2);
+                elseif config == "GENERAL"
+                    err = err + sum((X{k}- vertcat(param.Xref{:})).^2, 'all')...
+                            + sum((U{k}-vertcat(param.Uref{:})).^2);
+                end
+            end
+            err = sqrt(err);
         end
        
     end % end methods
