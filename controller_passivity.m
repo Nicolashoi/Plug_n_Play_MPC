@@ -61,7 +61,7 @@ function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, L_tilde,...
     %ops.mosek.MSK_IPAR_INFEAS_REPORT_AUTO = 'MSK_ON';
     diagnostics = optimize(constraints, objective, ops);
     if diagnostics.problem == 1
-        disp('MOSEK solver thinks it is infeasible')
+       sprintf('MOSEK solver thinks it is infeasible for system %d', i)
     end
     %% MAP
     Pi = inv(value(E)); Ki = value(G)*Pi;
