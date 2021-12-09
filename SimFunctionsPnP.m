@@ -17,7 +17,9 @@ classdef SimFunctionsPnP
                 neighbors_i = sort([i; neighbors(obj.NetGraph, i)]); 
                 K_block = blkdiag(obj.Ki{neighbors_i}); %block matrix of all neighbors K
                 obj.K_Ni{i} = K_block(neighbors_i==i,:); % extract only row corresponding to subsystem i
+                %[Q_Ni, Ri] = computeQi_Ri(obj, i);
             end
+            
         end
         
         
