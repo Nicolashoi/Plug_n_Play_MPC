@@ -25,7 +25,7 @@ function u0 = onlineMPC2_ADMM(x0,Q_Ni, Ri, N, param)
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
 
             for j = neighbors_i'
-                wi{j,k,i}.xi = param.Wij{i}{j}*w_Ni{i,k}.x_Ni(:,:); % estimation by system i
+                wi{j,k,i}.xi = param.Wij{i}{j}*w_Ni{i,k}.x_Ni(:,:); % estimation of neighbors j by system i
                 wi{j,k,i}.xei = param.Wij{i}{j}*w_Ni{i,k}.x_eNi;
             end
         end  
@@ -134,37 +134,6 @@ function zi = update_global_copy(wi)
         % concatenate the same structure fieldname into 3rd dimension
         zi.(fn{ii}) = mean(cat(3, extract{:}),3); % mean along 3rd dimension
     end
-end
-
-
-function [w_Ni_new, vi_new] = lagrangian(N, p, constraints_i, objective_i, w_Ni,...
-                                         vi, z_Ni, y_Ni)
-    fn = fieldnames(w_Ni);
-    wNiMinuszNi = diff_struct(w_Ni, z_Ni);
-    fn = fieldnames(wNiMinuszNi);
-    objective = objective_i;
-    for n = 1:N
-        objective = objective + y_Ni.x_Ni(:,n)' * wNiMinuszNi.x_Ni(:,n) + ...
-                    p/2 * wNiMinuszNi.x_Ni(:,n)'*wNiMinuszNi.x_Ni(:,n);
-    end
-    objective = objective + y_Ni.x_eNi' * wNiMinuszNi.x_eNi + ...
-                    p/2 * wNiMinuszNi.x_eNi'*wNiMinuszNi.x_eNi;
-      
-%         objective = objective + y_Ni.(fn{i}).*(w_Ni.(fn{i}) - z_Ni.(fn{i})) + ...
-%                     p/2*(w_Ni.(fn{i}) - z_Ni.(fn{i})).^2;
-    ops = sdpsettings('solver', 'MOSEK', 'verbose',0); %options
-    diagnostics = optimize(constraints_i, objective, ops);
-    if diagnostics.problem == 1
-       fprintf("MOSEK solver thinks it is infeasible");
-    end
-    fn = fieldnames(w_Ni);
-    for i = 1:numel(fn)
-        w_Ni_new.(fn{i}) = value(w_Ni.(fn{i}));
-    end
-    fnv = fieldnames(vi);
-    for ii = 1:numel(fnv)
-        vi_new.(fnv{ii}) = value(vi.(fnv{ii}));
-    end  
 end
 
 function result = diff_struct(w_Ni, z_Ni)
