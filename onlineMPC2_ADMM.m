@@ -1,6 +1,6 @@
 function u0 = onlineMPC2_ADMM(x0,Q_Ni, Ri, N, param)
     p = 1/2;
-    TMAX = 80;
+    TMAX = 10;
     Tk = 0; k = 2; l=1;
      for i=param.activeDGU
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
@@ -71,6 +71,10 @@ function u0 = onlineMPC2_ADMM(x0,Q_Ni, Ri, N, param)
                                             
             end
             %% Terminal cost
+            objective_i = objective_i + ...
+                        (Xi(:,end)-Xei)'*param.Pi{i}*(Xi(:,end)-Xei) +...
+                        (Xei-param.Xref{i})'*Si*(Xei-param.Xref{i});
+                        
 %             objective = objective + ... 
 %                         (Xi{end}(:,i)-Xe(:,i))'*Pi{i}*(Xi{end}(:,i)-Xe(:,i))+...
 %                         (Xe(:,i) - param.Xref{i})'*Si*(Xe(:,i) - param.Xref{i});
@@ -114,8 +118,13 @@ function u0 = onlineMPC2_ADMM(x0,Q_Ni, Ri, N, param)
                             structfun(@(x) p.*x, y_Ni_inter, 'Un', false)) ; 
         end
         Tk = Tk + toc(tStart);
+        k = k+1;
+        l = l+1;
     end
-    
+    u0 = zeros(1,param.nb_subsystems);
+    for i=param.activeDGU
+        u0(:,i) = vi{i,end}.ui(:,1);
+    end
 end
 
 function zi = update_global_copy(wi)
@@ -143,7 +152,7 @@ function [w_Ni_new, vi_new] = lagrangian(N, p, constraints_i, objective_i, w_Ni,
       
 %         objective = objective + y_Ni.(fn{i}).*(w_Ni.(fn{i}) - z_Ni.(fn{i})) + ...
 %                     p/2*(w_Ni.(fn{i}) - z_Ni.(fn{i})).^2;
-    ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
+    ops = sdpsettings('solver', 'MOSEK', 'verbose',0); %options
     diagnostics = optimize(constraints_i, objective, ops);
     if diagnostics.problem == 1
        fprintf("MOSEK solver thinks it is infeasible");
