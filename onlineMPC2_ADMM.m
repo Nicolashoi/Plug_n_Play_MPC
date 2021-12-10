@@ -19,90 +19,17 @@ function u0 = onlineMPC2_ADMM(x0,Q_Ni, Ri, N, param)
         tStart  =tic;
     %% Constraints: Outer loop over subsystems, inner loop over Horizon
         for i=param.activeDGU % loop over all subsystems
-            objective_i = 0;
-            constraints_i = [];
-            Xi = sdpvar(param.ni,N, 'full');
-            Ui = sdpvar(param.nu,N-1, 'full');
-            n_Ni = size(param.A_Ni{i},2); % get size of set of Neighbors
-            X_eNi = sdpvar(n_Ni,1,'full'); % neighbor equilibrium state i
-            X_Ni = sdpvar(n_Ni, N, 'full');
-            Xei = sdpvar(param.ni,1,'full');
-            Uei = sdpvar(param.nu,1,'full');
-            di = sdpvar(param.nu,1,'full');
-            constraints_i = [constraints_i, Xi(:,1) == x0{:,i}];
-            Si = 1000*eye(param.ni);
-
+            
+          [w_Ni{i,k}, vi{i,k}] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni{i,l}, y_Ni{i,l});
             % obtain sorted list of neighbors of system i
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
 
-            %lambda{i} = sdpvar(n_Ni,1, 'full');
-            % constraint for X_eNi =  concat of neighbor x_ei
-    %         constraints_i = [constraints_i, X_eNi == ...
-    %                                     reshape(Xe(:,neighbors_i),[],1)];
-            %% Equilibrium constraints
-            constraints_i = [constraints_i, Xei == param.A_Ni{i}*X_eNi + ...
-                                                    param.Bi{i}*Uei];
-            constraints_i = [constraints_i, Uei == param.K_Ni{i}*X_eNi + di];  
-
-
-            %% Planning Horizon Loop
-            for n = 1:N-1 
-                % Neighbor States for each ith sytem at the kth horizon iteration
-    %             X_Ni{i,n} = sdpvar(n_Ni,1,'full'); % neighbor set of state i
-                % add a constraint for the neighbor state i to be equal to the
-                % concatenated subsystem neighbor state vectors
-    %             constraints_i = [constraints_i, X_Ni{i,n} == ...
-    %                                         reshape(X{n}(:,neighbors_i),[],1)];
-
-                % Distributed Dynamics
-                constraints_i = [constraints_i, Xi(:,n+1) == param.A_Ni{i}*X_Ni(:,n)+...
-                                                           param.Bi{i}*Ui(:,n)];
-                % State and input constraints
-                constraints_i = [constraints_i, param.Gx_Ni{i} * X_Ni(:,n)...
-                                          <= param.fx_Ni{i}];
-    %             constraints = [constraints, param.Gx_i{i} * X{n}(:,i)...
-    %                                       <= param.fx_i{i}];
-                constraints_i = [constraints_i, param.Gu_i{i} * Ui(:,n)...
-                                           <= param.fu_i{i}];
-                % Objective
-                objective_i = objective_i + ...
-                            (X_Ni(:,n)-X_eNi)'*Q_Ni{i}*(X_Ni(:,n)-X_eNi)+...
-                            (Ui(:,n)-Uei)'*Ri{i}*(Ui(:,n)-Uei);
-                                            
-            end
-            %% Terminal cost
-            objective_i = objective_i + ...
-                        (Xi(:,end)-Xei)'*param.Pi{i}*(Xi(:,end)-Xei) +...
-                        (Xei-param.Xref{i})'*Si*(Xei-param.Xref{i});
-                        
-%             objective = objective + ... 
-%                         (Xi{end}(:,i)-Xe(:,i))'*Pi{i}*(Xi{end}(:,i)-Xe(:,i))+...
-%                         (Xe(:,i) - param.Xref{i})'*Si*(Xe(:,i) - param.Xref{i});
-
-            %%  Terminal Set condition
-%             constraints_i = [constraints_i, (Xi{end}(:,i)-ci(i))'*Pi{i}*(Xi{end}(:,i)-ci(i))...
-%                                         <= alpha(i)^2];      
-          
-            w_Ni{i,k}.x_Ni = X_Ni;
-            w_Ni{i,k}.x_eNi = X_eNi;
-            %wNi{i,k}.alpha_Ni = value(X_eNi);
-            %wNi{i,k}.cNi = value(cNi);
-            vi{i,k}.ui = Ui;
-            vi{i,k}.uei = Uei;
-            vi{i,k}.di = di;
-            %vi{i,k}.lambda_ij = value(lambda_ij);
-            wi{i,k,i}.xi = Xi;
-            wi{i,k,i}.xei = Xei;
-            %wi{i,k,i}.alpha_i = value(alpha_i); % ith value computed by system i
-            %wi{i,k,i}.ci = value(ci);
-            [w_Ni{i,k}, vi{i,k}] = lagrangian(N, p, constraints_i, objective_i, ...
-                                   w_Ni{i,k}, vi{i,k}, z_Ni{i,l}, y_Ni{i,l});
-                               
             for j = neighbors_i'
-                wi{i,k,j}.xi = param.Wij{i}{j}*w_Ni{i,k}.x_Ni(:,:);
-                wi{i,k,j}.xei = param.Wij{i}{j}*w_Ni{i,k}.x_eNi;
+                wi{j,k,i}.xi = param.Wij{i}{j}*w_Ni{i,k}.x_Ni(:,:); % estimation by system i
+                wi{j,k,i}.xei = param.Wij{i}{j}*w_Ni{i,k}.x_eNi;
             end
         end  
+        
         for i = param.activeDGU
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
             zi{i,k} = update_global_copy(wi(i,k,neighbors_i));
@@ -127,6 +54,78 @@ function u0 = onlineMPC2_ADMM(x0,Q_Ni, Ri, N, param)
     end
 end
 
+
+function [w_Ni, vi] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni)
+    neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
+    p = 1/2;
+    objective_i = 0;
+    constraints_i = [];
+    Xi = sdpvar(param.ni,N, 'full');
+    Ui = sdpvar(param.nu,N-1, 'full');
+    n_Ni = size(param.A_Ni{i},2); % get size of set of Neighbors
+    X_eNi = sdpvar(n_Ni,1,'full'); % neighbor equilibrium state i
+    X_Ni = sdpvar(n_Ni, N, 'full');
+    Xei = sdpvar(param.ni,1,'full');
+    Uei = sdpvar(param.nu,1,'full');
+    di = sdpvar(param.nu,1,'full');
+    constraints_i = [constraints_i, Xi(:,1) == x0{i}];
+    for j=neighbors_i'
+       constraints_i = [constraints_i, X_Ni(:,1) == vertcat(x0{neighbors_i})];
+    end
+    Si = 1000*eye(param.ni);
+
+    % obtain sorted list of neighbors of system i
+    neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
+
+    %% Equilibrium constraints
+    constraints_i = [constraints_i, Xei == param.A_Ni{i}*X_eNi + ...
+                                            param.Bi{i}*Uei];
+    constraints_i = [constraints_i, Uei == param.K_Ni{i}*X_eNi + di];  
+
+    
+    %% Planning Horizon Loop
+    for n = 1:N-1 
+        % Distributed Dynamics
+        constraints_i = [constraints_i, Xi(:,n+1) == param.A_Ni{i}*X_Ni(:,n)+...
+                                                   param.Bi{i}*Ui(:,n)];
+                                               
+        % State and input constraints
+        constraints_i = [constraints_i, param.Gx_Ni{i} * X_Ni(:,n)...
+                                  <= param.fx_Ni{i}];
+        constraints_i = [constraints_i, param.Gu_i{i} * Ui(:,n)...
+                                   <= param.fu_i{i}];
+        % Objective
+        objective_i = objective_i + ...
+                    (X_Ni(:,n)-X_eNi)'*Q_Ni{i}*(X_Ni(:,n)-X_eNi)+...
+                    (Ui(:,n)-Uei)'*Ri{i}*(Ui(:,n)-Uei);
+       % augmented Lagrangian         
+       objective_i = objective_i + y_Ni.x_Ni(:,n)'*(X_Ni(:,n)-z_Ni.x_Ni(:,n)) + ...
+                     p/2 * (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n));
+    end
+    objective_i = objective_i + y_Ni.x_Ni(:,end)'*(X_Ni(:,end)-z_Ni.x_Ni(:,end)) + ...
+                   y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi)+ ... 
+                   p/2 * (X_Ni(:,end)-z_Ni.x_Ni(:,end))'*(X_Ni(:,end)-z_Ni.x_Ni(:,end))...
+                  + p/2 * (X_eNi-z_Ni.x_eNi)'*(X_eNi-z_Ni.x_eNi);
+    %% Terminal cost
+    objective_i = objective_i + ...
+                (Xi(:,end)-Xei)'*param.Pi{i}*(Xi(:,end)-Xei) +...
+                (Xei-param.Xref{i})'*Si*(Xei-param.Xref{i});
+    
+    ops = sdpsettings('solver', 'MOSEK', 'verbose',0); %options
+    diagnostics = optimize(constraints_i, objective_i, ops);
+    if diagnostics.problem == 1
+       fprintf("MOSEK solver thinks it is infeasible");
+    end
+    
+    w_Ni.x_Ni = value(X_Ni);
+    w_Ni.x_eNi = value(X_eNi);
+    vi.ui = value(Ui);
+    vi.uei = value(Uei);
+    vi.di = value(di);
+end
+
+
+
 function zi = update_global_copy(wi)
     fn = fieldnames(wi{1});
     for ii = 1:numel(fn)
@@ -136,6 +135,7 @@ function zi = update_global_copy(wi)
         zi.(fn{ii}) = mean(cat(3, extract{:}),3); % mean along 3rd dimension
     end
 end
+
 
 function [w_Ni_new, vi_new] = lagrangian(N, p, constraints_i, objective_i, w_Ni,...
                                          vi, z_Ni, y_Ni)
