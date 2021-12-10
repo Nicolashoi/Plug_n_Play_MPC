@@ -1,18 +1,18 @@
 function u0 = onlineMPC2_ADMM(x0,Q_Ni, Ri, N, param)
-    p = 1/2;
-    TMAX = 10;
+    p = 0.5;
+    TMAX = 40;
     Tk = 0; k = 2; l=1;
      for i=param.activeDGU
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
             z_Ni{i,1}.x_Ni = zeros(length(neighbors_i)*param.ni,N);
             z_Ni{i,1}.x_eNi = zeros(length(neighbors_i)*param.ni,1);
-            %z_Ni{i,1}.alpha_Ni = zeros(length(neighbors_i),1);
-           % z_Ni{i,1}.c_Ni = 0; %%% TO CHECK SIZES
+            z_Ni{i,1}.alpha_Ni = diag(zeros(length(neighbors_i)*param.ni,1));
+            z_Ni{i,1}.c_Ni = zeros(length(neighbors_i)*param.ni,1); 
 
             y_Ni{i,1}.x_Ni = zeros(length(neighbors_i)*param.ni,N);
             y_Ni{i,1}.x_eNi = zeros(length(neighbors_i)*param.ni,1);
-            %y_Ni{i,1}.alpha_Ni = zeros(length(neighbors_i),1);
-            %y_Ni{i,1}.c_Ni = 0; %%% TO CHECK SIZES
+            y_Ni{i,1}.alpha_Ni = zeros(length(neighbors_i),1);
+            y_Ni{i,1}.c_Ni = zeros(length(neighbors_i)*param.ni,1); 
 
     end
     while(Tk < TMAX)
@@ -57,7 +57,7 @@ end
 
 function [w_Ni, vi] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni)
     neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
-    p = 1/2;
+    p = 0.5;
     objective_i = 0;
     constraints_i = [];
     Xi = sdpvar(param.ni,N, 'full');
@@ -69,14 +69,14 @@ function [w_Ni, vi] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni)
     Uei = sdpvar(param.nu,1,'full');
     di = sdpvar(param.nu,1,'full');
     ci = sdpvar(param.ni,1,'full');
-    alpha = sdpvar(1);
-    lambda = sdpvar(n_Ni,1,'full');
+    alpha_i = sdpvar(1);
+    %alpha_i = sdpvar(param.nb_subsystems,1,'full');
+    lambda_i = sdpvar(n_Ni,1,'full');
     bi = sdpvar(param.ni,1, 'full');
     
     constraints_i = [constraints_i, Xi(:,1) == x0{i}];
-    for j=neighbors_i'
-       constraints_i = [constraints_i, X_Ni(:,1) == vertcat(x0{neighbors_i})];
-    end
+    % INCLUDE ??
+    %constraints_i = [constraints_i, X_Ni(:,1) == vertcat(x0{neighbors_i})];
     Si = 1000*eye(param.ni);
 
     % obtain sorted list of neighbors of system i
@@ -94,7 +94,7 @@ function [w_Ni, vi] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni)
         constraints_i = [constraints_i, Xi(:,n+1) == param.A_Ni{i}*X_Ni(:,n)+...
                                                    param.Bi{i}*Ui(:,n)];
         idx_Ni = logical(kron((neighbors_i==i), ones(param.ni,1)));
-        constraints_i = [constraints_i, X_Ni(idx_Ni,n+1) == Xi(:,n+1)];                                       
+        constraints_i = [constraints_i, X_Ni(idx_Ni,n) == Xi(:,n)];                                       
         % State and input constraints
         constraints_i = [constraints_i, param.Gx_Ni{i} * X_Ni(:,n)...
                                   <= param.fx_Ni{i}];
@@ -108,6 +108,7 @@ function [w_Ni, vi] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni)
        objective_i = objective_i + y_Ni.x_Ni(:,n)'*(X_Ni(:,n)-z_Ni.x_Ni(:,n)) + ...
                      p/2 * (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n));
     end
+    constraints_i = [constraints_i, X_Ni(idx_Ni,N) == Xi(:,N)]; 
     objective_i = objective_i + y_Ni.x_Ni(:,end)'*(X_Ni(:,end)-z_Ni.x_Ni(:,end)) + ...
                    y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi)+ ... 
                    p/2 * (X_Ni(:,end)-z_Ni.x_Ni(:,end))'*(X_Ni(:,end)-z_Ni.x_Ni(:,end))...
@@ -117,6 +118,8 @@ function [w_Ni, vi] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni)
                 (Xi(:,end)-Xei)'*param.Pi{i}*(Xi(:,end)-Xei) +...
                 (Xei-param.Xref{i})'*Si*(Xei-param.Xref{i});
     
+    [constraints_i, ci, di, alpha_i, lambda_i, bi, alpha_Ni, c_Ni] = terminalConstraints(constraints_i, param,i,...
+         ci, di,  alpha_i, lambda_i, bi);
     ops = sdpsettings('solver', 'MOSEK', 'verbose',0); %options
     diagnostics = optimize(constraints_i, objective_i, ops);
     if diagnostics.problem == 1
@@ -130,7 +133,59 @@ function [w_Ni, vi] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni)
     vi.di = value(di);
 end
 
-
+function [constraints_i, ci, di, alpha_i, lambda_i, bi, alpha_Ni, c_Ni] = terminalConstraints(constraints_i, param,i,...
+         ci, di,  alpha_i, lambda_i, bi)
+     neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
+     sumLambdaP_ij = 0;
+     sumLambda_ij = 0;
+     AbsSumLambdaP_ij = 0;
+     alpha_Ni = 0;
+     c_Ni = 0;
+     idx_Ni = logical(kron((neighbors_i==i), ones(param.ni,1)));
+     alpha_Ni = diag(sdpvar(length(neighbors_i)*param.ni,1));
+     c_Ni = sdpvar(length(neighbors_i)*param.ni,1, 'full');
+     constraints_i = [constraints_i, alpha_Ni(idx_Ni, idx_Ni) == ...
+                      alpha_i*eye(param.ni)];
+     constraints_i = [constraints_i, c_Ni(idx_Ni) == ci];
+                        
+     for j = 1:length(neighbors_i)
+         Pij = (param.Wij{i}{neighbors_i(j)})'*param.Pi{neighbors_i(j)}...
+                    *(param.Wij{i}{neighbors_i(j)});
+         sumLambdaP_ij = sumLambdaP_ij + ...
+                             lambda_i(j)*Pij;
+         AbsSumLambdaP_ij = AbsSumLambdaP_ij + lambda_i(j)*abs(Pij);
+         sumLambda_ij = sumLambda_ij + lambda_i(j);  
+     end
+     %% Equation 14: Approx of LMI with diagonal dominance
+     PiInv = inv(param.Pi{i});
+     constraints_i = [constraints_i, (param.A_Ni{i}+param.Bi{i}*param.K_Ni{i})...
+                       *c_Ni + param.Bi{i}*di- ci == bi];
+     constraints_i = [constraints_i, alpha_i(i)-sumLambda_ij >= sum(bi(:))];  
+     for k= 1:param.ni
+            nondiag1 = sum(abs(PiInv(k,:))*alpha_i)- abs(PiInv(k,k))*alpha_i+...
+                       sum(abs(param.A_Ni{i}(k,:)+ param.Bi{i}(k)*param.K_Ni{i}(:))*alpha_Ni)...
+                       + bi(k);
+            constraints_i = [constraints_i, PiInv(k,k)*alpha_i >= nondiag1];       
+     end
+     for k=1:size(param.A_Ni{i},2)
+            nondiag2 = sum(AbsSumLambdaP_ij(k,:)) - AbsSumLambdaP_ij(k,k) + ...
+                       sum(abs(param.A_Ni{i}(:,k)+ param.Bi{i}(:)*param.K_Ni{i}(k))*alpha_i);
+            constraints_i = [constraints_i, sumLambdaP_ij(k,k) >= nondiag2];
+     end
+     
+     %% Equation 11
+        for k=1:size(param.Gx_Ni{i},1) 
+            sum_GxNorm2 = 0;
+            for j=1:length(neighbors_i)
+                sum_GxNorm2 = sum_GxNorm2 + norm(param.Gx_Ni{i}(k,:)*...
+                             (param.Wij{i}{neighbors_i(j)})'*...
+                              Pi{neighbors_i(j)}^(-1/2),2) * alpha(neighbors_i(j));
+                
+            end
+            constraints = [constraints, param.Gx_Ni{i}(k,:)*c_Ni{i} + sum_GxNorm2 ...
+                            <= param.fx_Ni{i}(k)];    
+        end
+end
 
 function zi = update_global_copy(wi)
     fn = fieldnames(wi{1});
