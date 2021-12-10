@@ -68,6 +68,11 @@ function [w_Ni, vi] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni)
     Xei = sdpvar(param.ni,1,'full');
     Uei = sdpvar(param.nu,1,'full');
     di = sdpvar(param.nu,1,'full');
+    ci = sdpvar(param.ni,1,'full');
+    alpha = sdpvar(1);
+    lambda = sdpvar(n_Ni,1,'full');
+    bi = sdpvar(param.ni,1, 'full');
+    
     constraints_i = [constraints_i, Xi(:,1) == x0{i}];
     for j=neighbors_i'
        constraints_i = [constraints_i, X_Ni(:,1) == vertcat(x0{neighbors_i})];
@@ -88,7 +93,8 @@ function [w_Ni, vi] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni)
         % Distributed Dynamics
         constraints_i = [constraints_i, Xi(:,n+1) == param.A_Ni{i}*X_Ni(:,n)+...
                                                    param.Bi{i}*Ui(:,n)];
-                                               
+        idx_Ni = logical(kron((neighbors_i==i), ones(param.ni,1)));
+        constraints_i = [constraints_i, X_Ni(idx_Ni,n+1) == Xi(:,n+1)];                                       
         % State and input constraints
         constraints_i = [constraints_i, param.Gx_Ni{i} * X_Ni(:,n)...
                                   <= param.fx_Ni{i}];
