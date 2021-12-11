@@ -165,7 +165,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
                     (Xe(:,i) - param.Xref{i})'*S{i}*(Xe(:,i) - param.Xref{i});
                         
         %%  Terminal Set condition
-        constraints = [constraints, (X{end}(:,i)-ci(i))'*Pi{i}*(X{end}(:,i)-ci(i))...
+        constraints = [constraints, (X{end}(:,i)-ci(:,i))'*Pi{i}*(X{end}(:,i)-ci(:,i))...
                                     <= alpha(i)^2];      
 
     end    
