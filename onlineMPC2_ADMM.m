@@ -1,5 +1,5 @@
 function u0 = onlineMPC2_ADMM(x0,Q_Ni, Ri, N, param)
-    p = 0.5;
+    rho = 0.25;
     TMAX = 40;
     Tk = 0; k = 2; l=1;
      for i=param.activeDGU
@@ -20,7 +20,7 @@ function u0 = onlineMPC2_ADMM(x0,Q_Ni, Ri, N, param)
     %% Constraints: Outer loop over subsystems, inner loop over Horizon
         for i=param.activeDGU % loop over all subsystems
             
-          [w_Ni{i,k}, vi{i,k}] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni{i,l}, y_Ni{i,l}, p);
+          [w_Ni{i,k}, vi{i,k}] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni{i,l}, y_Ni{i,l}, rho);
             % obtain sorted list of neighbors of system i
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
             idx_Ni = logical(kron((neighbors_i==i), ones(param.ni,1)));
@@ -52,9 +52,18 @@ function u0 = onlineMPC2_ADMM(x0,Q_Ni, Ri, N, param)
             % Update Lagrange Multipliers
             y_Ni_inter = diff_struct(w_Ni{i,k}, z_Ni{i,k});
             y_Ni{i,k} = add_struct(y_Ni{i,l}, ...
-                            structfun(@(x) p.*x, y_Ni_inter, 'Un', false)) ; 
+                            structfun(@(x) rho.*x, y_Ni_inter, 'Un', false)) ; 
         end
         Tk = Tk + toc(tStart);
+        % HERE PUT CONDITION FOR TERMINATION
+        r_struct = diff_struct(w_Ni{i,k}, z_Ni{i,k});
+        r_norm{k} = sum(vecnorm(r_struct.x_Ni,2));
+        s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
+        s_norm{k} = N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
+        
+        if r_norm{k} < 1 && s_norm{k} < 1
+            break;
+        end
         k = k+1;
         l = l+1;
     end
@@ -65,7 +74,7 @@ function u0 = onlineMPC2_ADMM(x0,Q_Ni, Ri, N, param)
 end
 
 
-function [w_Ni, vi] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni, p)
+function [w_Ni, vi] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni, rho)
     objective_i = 0;
     constraints_i = [];
     Xi = sdpvar(param.ni,N, 'full');
@@ -105,13 +114,13 @@ function [w_Ni, vi] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni, p)
                                        X_eNi, Uei, Q_Ni{i}, Ri{i});
        % augmented Lagrangian         
        objective_i = objective_i + y_Ni.x_Ni(:,n)'*(X_Ni(:,n)-z_Ni.x_Ni(:,n)) + ...
-                     p/2 * (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n));
+                     rho/2 * (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n));
     end
     constraints_i = [constraints_i, X_Ni(idx_Ni,N) == Xi(:,N)]; 
     objective_i = objective_i + y_Ni.x_Ni(:,end)'*(X_Ni(:,end)-z_Ni.x_Ni(:,end)) + ...
                    y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi)+ ... 
-                   p/2 * (X_Ni(:,end)-z_Ni.x_Ni(:,end))'*(X_Ni(:,end)-z_Ni.x_Ni(:,end))...
-                  + p/2 * (X_eNi-z_Ni.x_eNi)'*(X_eNi-z_Ni.x_eNi);
+                   rho/2 * (X_Ni(:,end)-z_Ni.x_Ni(:,end))'*(X_Ni(:,end)-z_Ni.x_Ni(:,end))...
+                  + rho/2 * (X_eNi-z_Ni.x_eNi)'*(X_eNi-z_Ni.x_eNi);
   
     %% Terminal Set constraints
     objective_i = objective_i + ... 
@@ -125,9 +134,9 @@ function [w_Ni, vi] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni, p)
                                    <= alpha_i(i)^2];
     % Augmented Lagrangian
     objective_i = objective_i + y_Ni.alpha_Ni'*(diag(alpha_Ni) - z_Ni.alpha_Ni) +...
-                   y_Ni.c_Ni'*(c_Ni - z_Ni.c_Ni)+ p/2*...
+                   y_Ni.c_Ni'*(c_Ni - z_Ni.c_Ni)+ rho/2*...
                   (diag(alpha_Ni) - z_Ni.alpha_Ni)'*(diag(alpha_Ni) - z_Ni.alpha_Ni)...
-                  +p/2 *(c_Ni - z_Ni.c_Ni)'*(c_Ni - z_Ni.c_Ni);
+                  +rho/2 *(c_Ni - z_Ni.c_Ni)'*(c_Ni - z_Ni.c_Ni);
     ops = sdpsettings('solver', 'MOSEK', 'verbose',0); %options
    
     parameters_in = {X0};
