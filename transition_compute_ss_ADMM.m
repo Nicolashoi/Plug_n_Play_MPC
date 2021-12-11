@@ -3,7 +3,7 @@ function [xs, us, alpha] = transition_compute_ss_ADMM(x0, N, paramBefore, paramA
     rho = 0.25;
     TMAX = 40;
     Tk = 0; k = 2; l=1;
-    
+    unionDGU = union(paramBefore.activeDGU,paramAfter.activeDGU);
     for i= paramBefore.activeDGU
         neighbors_i = sort([i;neighbors(paramBefore.NetGraph, i)]);
         z_Ni{i,1}.x_Ni = zeros(length(neighbors_i)*paramBefore.ni,N);
@@ -24,7 +24,7 @@ function [xs, us, alpha] = transition_compute_ss_ADMM(x0, N, paramBefore, paramA
     while(Tk < TMAX)
         tStart  =tic;
     %% Constraints: Outer loop over subsystems, inner loop over Horizon
-        for i = union(paramBefore.activeDGU,paramAfter.activeDGU) % loop over all subsystems
+        for i = unionDGU % loop over all subsystems
             
           [w_Ni{i,k}, vi{i,k}] = local_optim(i, x0, N, paramBefore, paramAfter,...
                                  z_Ni{i,l}, y_Ni{i,l}, rho, target);
@@ -41,18 +41,25 @@ function [xs, us, alpha] = transition_compute_ss_ADMM(x0, N, paramBefore, paramA
             end
         end  
         
-        for i = param.activeDGU
-            neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
+        for i = unionDGU
+            neighbors_i = sort([i;union(neighbors(paramBefore.NetGraph, i), ...
+                                neighbors(paramBefore.NetGraph, i))]);
             zi{i,k} = update_global_copy(wi(i,k,neighbors_i));
         end
-        for i=param.activeDGU
-            neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
-            % Update the global vector zNi
-            xi_cell =  cellfun(@(x) x.xi, zi(neighbors_i,k), 'Un', false);
-            z_Ni{i,k}.x_Ni = vertcat(xi_cell{:});
+        
+        for i=paramBefore.activeDGU
+            neighbors_i = sort([i;neighbors(paramBefore.NetGraph, i)]);
+            xi_cellBefore = cellfun(@(x) x.xi(:,1:N), zi(neighbors_i,k), 'Un', false);
+            z_Ni{i,k}.x_Ni = vertcat(xi_cellBefore{:});
             xei_cell =  cellfun(@(x) x.xei, zi(neighbors_i,k), 'Un', false);
             z_Ni{i,k}.x_eNi = vertcat(xei_cell{:});
-            alpha_i_cell = cellfun(@(x) x.alpha_i*ones(param.ni,1), ...
+        end
+        
+        for i=paramAfter.activeDGU
+            neighbors_i = sort([i;neighbors(paramAfter.NetGraph, i)]);
+            xi_cellAfter = cellfun(@(x) x.xi(:,N+1:end), zi(neighbors_i,k), 'Un', false);
+            z_Ni{i,k}.x_Ni_mod = vertcat(xi_cellAfter{:});
+            alpha_i_cell = cellfun(@(x) x.alpha_i*ones(paramAfter.ni,1), ...
                            zi(neighbors_i,k), 'Un', false); % format is alpha_i*dim(ni)
             z_Ni{i,k}.alpha_Ni = vertcat(alpha_i_cell{:});
             ci_cell = cellfun(@(x) x.ci, zi(neighbors_i,k), 'Un', false);
@@ -62,22 +69,28 @@ function [xs, us, alpha] = transition_compute_ss_ADMM(x0, N, paramBefore, paramA
             y_Ni{i,k} = add_struct(y_Ni{i,l}, ...
                             structfun(@(x) rho.*x, y_Ni_inter, 'Un', false)) ; 
         end
+        
         Tk = Tk + toc(tStart);
         % HERE PUT CONDITION FOR TERMINATION
-        r_struct = diff_struct(w_Ni{i,k}, z_Ni{i,k});
-        r_norm{k} = sum(vecnorm(r_struct.x_Ni,2));
-        s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
-        s_norm{k} = N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
-        
+        r_norm{k} = 0;
+        s_norm{k} = 0;
+        for i = unionDGU
+            r_struct = diff_struct(w_Ni{i,k}, z_Ni{i,k});
+            r_norm{k} = r_norm{k} + sum(vecnorm(r_struct.x_Ni,2));
+            s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
+            s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
+        end
         if r_norm{k} < 1 && s_norm{k} < 1
             break;
         end
         k = k+1;
         l = l+1;
     end
-    u0 = zeros(1,param.nb_subsystems);
-    for i=param.activeDGU
-        u0(:,i) = vi{i,end}.ui(:,1);
+    xs = zeros(paramBefore.ni, paramBefore.nb_subsystems);
+    us = zeros(paramBefore.nu, paramBefore.nb_subsystems);
+    for i=unionDGU
+        xs(:,i) = wi{i,end,i}.xei;
+        us(:,i) = vi{i,end}.uei;;
     end
 end
 
@@ -115,8 +128,9 @@ function [w_Ni, vi] = local_optim(i, x0, N, paramBefore, paramAfter, z_Ni, y_Ni,
     constraints_i = [constraints_i, Xei == paramBefore.A_Ni{i}*X_eNi + ...
                                             paramBefore.Bi{i}*Uei];
     constraints_i = [constraints_i, X_eNi(idx_Ni)==Xei];
-    constraints_i = [constraints_i, Uei == paramBefore.K_Ni{i}*X_eNi + di];  
-    constraints_i = [constraints_i,  paramBefore.Gx_Ni{i}*X_eNi <= paramBefore.fx_Ni{i}];
+    % With new redesigned local passive feedback gains
+    constraints_i = [constraints_i, Uei == paramAfter.Ki{i}*Xei + di];  
+    %constraints_i = [constraints_i,  paramAfter.Gx_Ni{i}*X_eNi <= paramAfter.fx_Ni{i}];
     %% Planning Horizon Loop
     
     for n = 1:N-1 
@@ -206,12 +220,12 @@ function [constraints_i, objective_i] = dynamicsConstraintsBeforePnP(constraints
                                                param.Bi{i}*Ui(:,n)];
     constraints_i = [constraints_i, X_Ni(idx_Ni,n) == Xi(:,n)];                                       
     % State and input constraints
-    constraints_i = [constraints_i, param.Gx_Ni{i} * X_Ni(:,n)...
-                              <= param.fx_Ni{i}];
+    constraints_i = [constraints_i, param.Gx_i{i} * Xi(:,n)...
+                              <= param.fx_i{i}];
     constraints_i = [constraints_i, param.Gu_i{i} * Ui(:,n)...
                                <= param.fu_i{i}];
     if target == "reference"
-        objective_i = objective_i + norm(Xei-param.Xref{i},2);
+        objective_i = objective_i + 1000*norm(Xei-param.Xref{i},2);
     elseif target == "current state"
         objective_i = objective_i + norm(Xei-x0_i,2);
     else

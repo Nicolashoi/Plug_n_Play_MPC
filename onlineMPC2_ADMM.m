@@ -55,7 +55,7 @@ function u0 = onlineMPC2_ADMM(x0,Q_Ni, Ri, N, param)
                             structfun(@(x) rho.*x, y_Ni_inter, 'Un', false)) ; 
         end
         Tk = Tk + toc(tStart);
-        % HERE PUT CONDITION FOR TERMINATION
+        % HERE PUT CONDITION FOR TERMINATION LOOP OVER ALL SUBSYSTEMS
         r_struct = diff_struct(w_Ni{i,k}, z_Ni{i,k});
         r_norm{k} = sum(vecnorm(r_struct.x_Ni,2));
         s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
