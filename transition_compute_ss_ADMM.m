@@ -1,7 +1,7 @@
 
 function [xs, us, alpha] = transition_compute_ss_ADMM(x0, N, paramBefore, paramAfter, target)
     rho = 0.25;
-    TMAX = 40;
+    TMAX = 100;
     Tk = 0; k = 2; l=1;
     unionDGU = union(paramBefore.activeDGU,paramAfter.activeDGU);
     for i= paramBefore.activeDGU
@@ -85,12 +85,13 @@ function [xs, us, alpha] = transition_compute_ss_ADMM(x0, N, paramBefore, paramA
         end
         k = k+1;
         l = l+1;
+        fprintf("Iteration %d,  Time elapsed %d \n", l, Tk);
     end
     xs = zeros(paramBefore.ni, paramBefore.nb_subsystems);
     us = zeros(paramBefore.nu, paramBefore.nb_subsystems);
     for i=unionDGU
         xs(:,i) = wi{i,end,i}.xei;
-        us(:,i) = vi{i,end}.uei;;
+        us(:,i) = vi{i,end}.uei;
     end
 end
 
