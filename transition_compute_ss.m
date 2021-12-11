@@ -143,7 +143,7 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
                            <= paramAfter.fu_i{i}(k)];    
         end
         %% Horizon Loop
-        for n= N+1:1:2*N-1
+        for n= N+1:1:2*N-1 % start from N here ? error in paper ?
             X_Ni{i,n} = sdpvar(n_Ni,1,'full'); % neighbor set of state i
             constraints = [constraints, X_Ni{i,n} == ...
                                         reshape(X{n}(:,neighbors_i),[],1)];

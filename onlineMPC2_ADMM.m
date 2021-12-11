@@ -23,7 +23,7 @@ function u0 = onlineMPC2_ADMM(x0,Q_Ni, Ri, N, param)
           [w_Ni{i,k}, vi{i,k}] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni{i,l}, y_Ni{i,l}, rho);
             % obtain sorted list of neighbors of system i
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
-            idx_Ni = logical(kron((neighbors_i==i), ones(param.ni,1)));
+%             idx_Ni = logical(kron((neighbors_i==i), ones(param.ni,1)));
             for j = neighbors_i'
                 wi{j,k,i}.xi = param.Wij{i}{j}*w_Ni{i,k}.x_Ni; % estimation of neighbors j by system i
                 wi{j,k,i}.xei = param.Wij{i}{j}*w_Ni{i,k}.x_eNi;
@@ -104,6 +104,7 @@ function [w_Ni, vi] = local_optim(i, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni, rho)
     %% Equilibrium constraints
     constraints_i = [constraints_i, Xei == param.A_Ni{i}*X_eNi + ...
                                             param.Bi{i}*Uei];
+    constraints_i = [constraints_i, X_eNi(idx_Ni)==Xei];
     constraints_i = [constraints_i, Uei == param.K_Ni{i}*X_eNi + di];  
 
     %% Planning Horizon Loop
