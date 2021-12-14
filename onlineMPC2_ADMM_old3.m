@@ -99,28 +99,13 @@ end
 function localOptimizer = init_optimizer(x0, i, Q_Ni, Ri, N, param, rho)
     objective_i = 0;
     constraints_i = [];
-    Xi = sdpvar(param.ni,N, 'full');
-    Ui = sdpvar(param.nu,N-1, 'full');
-    n_Ni = size(param.A_Ni{i},2); % get size of set of Neighbors
-    X_eNi = sdpvar(n_Ni,1,'full'); % neighbor equilibrium state i
-    X_Ni = sdpvar(n_Ni, N, 'full');
-    Xei = sdpvar(param.ni,1,'full');
-    Uei = sdpvar(param.nu,1,'full');
-    di = sdpvar(param.nu,1,'full');
-    %ci = sdpvar(param.ni,1,'full');
-    ci = sdpvar(param.ni,param.nb_subsystems,'full');
-    %alpha_i = sdpvar(1);
-    alpha_i = sdpvar(1,param.nb_subsystems,'full');
-    lambda_i = sdpvar(n_Ni,1,'full');
-    bi = sdpvar(param.ni,1, 'full');
-    %X0 = sdpvar(param.ni,param.nb_subsystems,'full'); % state as rows and system number as column
-    constraints_i = [constraints_i, Xi(:,1) == x0(:,i)];
-    %constraints_i = [constraints_i, Xi(:,1) == x0{i}];
-    % INCLUDE ??
-    %constraints_i = [constraints_i, X_Ni(:,1) == vertcat(x0{neighbors_i})];
-    Si = 1000*eye(param.ni);
-
+    ni = param.ni;
+    nu = param.nu;
+    M = param.nb_subsystems;
     
+    n_Ni = size(param.A_Ni{i},2); % size of Neighbors set
+    
+    % variables as input to optimizer object
     z_Ni.x_Ni = sdpvar(n_Ni, N ,'full');   
     z_Ni.x_eNi = sdpvar(n_Ni, 1, 'full');
     z_Ni.alpha_Ni = sdpvar(n_Ni,1, 'full');
@@ -130,16 +115,41 @@ function localOptimizer = init_optimizer(x0, i, Q_Ni, Ri, N, param, rho)
     y_Ni.x_eNi = sdpvar(n_Ni, 1, 'full');
     y_Ni.alpha_Ni = sdpvar(n_Ni,1, 'full');
     y_Ni.c_Ni = sdpvar(n_Ni,1,'full'); 
-
+    
+    % Variables for Dynamics and constraints
+    Xi = sdpvar(ni,N, 'full');
+    Ui = sdpvar(nu,N-1, 'full');
+    X_eNi = sdpvar(n_Ni,1,'full'); % neighbor equilibrium state i
+    X_Ni = sdpvar(n_Ni, N, 'full');
+    Xei = sdpvar(ni,1,'full');
+    Uei = sdpvar(nu,1,'full');
+    di = sdpvar(nu,1,'full');
+    
+    % For terminal set
+    ci = sdpvar(ni,M,'full');
+    alpha_i = sdpvar(1,M,'full');
+    lambda_i = sdpvar(n_Ni,1,'full');
+    bi = sdpvar(ni,1, 'full');
+   
+    % For objective function
+    Si = 1000*eye(param.ni);
+    
     % obtain sorted list of neighbors of system i
     neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
     idx_Ni = logical(kron((neighbors_i==i), ones(param.ni,1)));
+    
+    % Initial condition
+    constraints_i = [constraints_i, Xi(:,1) == x0(:,i)];
+    
     %% Equilibrium constraints
     constraints_i = [constraints_i, Xei == param.A_Ni{i}*X_eNi + ...
                                             param.Bi{i}*Uei];
     constraints_i = [constraints_i, X_eNi(idx_Ni)==Xei];
     constraints_i = [constraints_i, Uei == param.K_Ni{i}*X_eNi + di];  
 
+    % augmented Lagrangian
+    objective_i = objective_i + y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi) + ...
+                  rho/2 * (X_eNi-z_Ni.x_eNi)'*(X_eNi-z_Ni.x_eNi);
     %% Planning Horizon Loop
     for n = 1:N-1 
         % Distributed Dynamics
@@ -152,14 +162,17 @@ function localOptimizer = init_optimizer(x0, i, Q_Ni, Ri, N, param, rho)
     end
     constraints_i = [constraints_i, X_Ni(idx_Ni,N) == Xi(:,N)]; 
     objective_i = objective_i + y_Ni.x_Ni(:,end)'*(X_Ni(:,end)-z_Ni.x_Ni(:,end)) + ...
-                   y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi)+ ... 
-                   rho/2 * (X_Ni(:,end)-z_Ni.x_Ni(:,end))'*(X_Ni(:,end)-z_Ni.x_Ni(:,end))...
-                  + rho/2 * (X_eNi-z_Ni.x_eNi)'*(X_eNi-z_Ni.x_eNi);
+                   rho/2 * (X_Ni(:,end)-z_Ni.x_Ni(:,end))'*(X_Ni(:,end)-z_Ni.x_Ni(:,end));
+        
   
     %% Terminal Set constraints
     [constraints_i, alpha_Ni, c_Ni] = terminalConstraints(constraints_i, param,i,...
          ci, di,  alpha_i, lambda_i, bi);
-   
+    
+     objective_i = objective_i + ... 
+                    (Xi(:,end)-Xei)'*param.Pi{i}*(Xi(:,end)-Xei)+...
+                    (Xei - param.Xref{i})'*Si*(Xei - param.Xref{i});
+     
     constraints_i = [constraints_i, (Xi(:,end)-ci(:,i))'*param.Pi{i}*(Xi(:,end)-ci(:,i))...
                                    <= alpha_i(i)^2];
     objective_i = objective_i + y_Ni.alpha_Ni'*(diag(alpha_Ni) - z_Ni.alpha_Ni) +...

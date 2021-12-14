@@ -209,8 +209,6 @@ function localOptimizer = init_optimizer(x0, i, N, param, rho, Q_Ni, Ri)
     Uei = sdpvar(nu,1,'full');
     di = sdpvar(nu,1,'full');
     
-    % Variables for 2nd optimization part (DGU PnP active and connected to
-    % the rest of the network
     ci = sdpvar(ni,M,'full');
     alpha_i = sdpvar(1,M,'full');
     lambda_i = sdpvar(n_Ni,1,'full');
@@ -249,7 +247,7 @@ function localOptimizer = init_optimizer(x0, i, N, param, rho, Q_Ni, Ri)
     end
     constraints_i = [constraints_i, X_Ni(idx_Ni,N) == Xi(:,N)]; 
     
-    % Augmented Lagrangian at Horizon N + equilibrium
+    % Augmented Lagrangian at Horizon N
     constraints_i = [constraints_i, eX_Ni_L(N) >= y_x_Ni(:,N)'*(X_Ni(:,N)-z_x_Ni(:,N)),... 
                      eX_Ni_Q(N) >= rho/2 * (X_Ni(:,N)-z_x_Ni(:,N))'*(X_Ni(:,N)-z_x_Ni(:,N))];
     objective_i = objective_i + sum(eX_Ni_L) + sum(eX_Ni_Q);
