@@ -1,4 +1,4 @@
-function u0 = onlineMPC2_ADMM(x0,Q_Ni, Ri, N, param)
+function u0 = onlineMPC2_ADMM_old(x0,Q_Ni, Ri, N, param)
     rho = 0.25;
     TMAX = 40;
     Tk = 0; k = 2; l=1;
@@ -79,14 +79,12 @@ end
 
 
 function [w_Ni, vi] = local_optim(i, k, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni, rho)
-    persistent localOptimizer
-    if k==2
-        localOptimizer{i} = init_optimizer(x0,i,N, param, rho,...
-                                           Q_Ni, Ri);
-    end
-    solutionSet = localOptimizer{i}(z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni,...
-                     z_Ni.c_Ni, y_Ni.x_Ni, y_Ni.x_eNi, y_Ni.alpha_Ni,...
-                     y_Ni.c_Ni);
+  
+    localOptimizer = init_optimizer(x0,i,N, param, rho, Q_Ni, Ri, y_Ni.x_Ni,...
+                                    y_Ni.x_eNi, y_Ni.alpha_Ni, y_Ni.c_Ni);
+                                
+    solutionSet = localOptimizer(z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni,...
+                     z_Ni.c_Ni);
 
     w_Ni.x_Ni = solutionSet{4};
     w_Ni.x_eNi = solutionSet{5};
@@ -94,82 +92,11 @@ function [w_Ni, vi] = local_optim(i, k, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni, rho)
     w_Ni.c_Ni = solutionSet{7};
     vi.ui = solutionSet{1};
     vi.uei = solutionSet{2};
-    vi.di = solutionSet{3};
-
-           
-%     objective_i = 0;
-%     constraints_i = [];
-%     Xi = sdpvar(param.ni,N, 'full');
-%     Ui = sdpvar(param.nu,N-1, 'full');
-%     n_Ni = size(param.A_Ni{i},2); % get size of set of Neighbors
-%     X_eNi = sdpvar(n_Ni,1,'full'); % neighbor equilibrium state i
-%     X_Ni = sdpvar(n_Ni, N, 'full');
-%     Xei = sdpvar(param.ni,1,'full');
-%     Uei = sdpvar(param.nu,1,'full');
-%     di = sdpvar(param.nu,1,'full');
-%     %ci = sdpvar(param.ni,1,'full');
-%     ci = sdpvar(param.ni,param.nb_subsystems,'full');
-%     %alpha_i = sdpvar(1);
-%     alpha_i = sdpvar(1,param.nb_subsystems,'full');
-%     lambda_i = sdpvar(n_Ni,1,'full');
-%     bi = sdpvar(param.ni,1, 'full');
-%     X0 = sdpvar(param.ni,param.nb_subsystems,'full'); % state as rows and system number as column
-%     constraints_i = [constraints_i, Xi(:,1) == X0(:,i)];
-%     %constraints_i = [constraints_i, Xi(:,1) == x0{i}];
-%     % INCLUDE ??
-%     %constraints_i = [constraints_i, X_Ni(:,1) == vertcat(x0{neighbors_i})];
-%     Si = 1000*eye(param.ni);
-% 
-%     % obtain sorted list of neighbors of system i
-%     neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
-%     idx_Ni = logical(kron((neighbors_i==i), ones(param.ni,1)));
-%     %% Equilibrium constraints
-%     constraints_i = [constraints_i, Xei == param.A_Ni{i}*X_eNi + ...
-%                                             param.Bi{i}*Uei];
-%     constraints_i = [constraints_i, X_eNi(idx_Ni)==Xei];
-%     constraints_i = [constraints_i, Uei == param.K_Ni{i}*X_eNi + di];  
-% 
-%     %% Planning Horizon Loop
-%     for n = 1:N-1 
-%         % Distributed Dynamics
-%         [constraints_i, objective_i] = dynamicsConstraints(constraints_i, objective_i,...
-%                                        n, i, param, idx_Ni, Xi, X_Ni,Ui, ....
-%                                        X_eNi, Uei, Q_Ni{i}, Ri{i});
-%        % augmented Lagrangian         
-%        objective_i = objective_i + y_Ni.x_Ni(:,n)'*(X_Ni(:,n)-z_Ni.x_Ni(:,n)) + ...
-%                      rho/2 * (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n));
-%     end
-%     constraints_i = [constraints_i, X_Ni(idx_Ni,N) == Xi(:,N)]; 
-%     objective_i = objective_i + y_Ni.x_Ni(:,end)'*(X_Ni(:,end)-z_Ni.x_Ni(:,end)) + ...
-%                    y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi)+ ... 
-%                    rho/2 * (X_Ni(:,end)-z_Ni.x_Ni(:,end))'*(X_Ni(:,end)-z_Ni.x_Ni(:,end))...
-%                   + rho/2 * (X_eNi-z_Ni.x_eNi)'*(X_eNi-z_Ni.x_eNi);
-%   
-%     %% Terminal Set constraints
-%     objective_i = objective_i + ... 
-%                     (Xi(:,end)-Xei)'*param.Pi{i}*(Xi(:,end)-Xei)+...
-%                     (Xei - param.Xref{i})'*Si*(Xei - param.Xref{i});
-%     
-%     [constraints_i, alpha_Ni, c_Ni] = terminalConstraints(constraints_i, param,i,...
-%          ci, di,  alpha_i, lambda_i, bi);
-%    
-%     constraints_i = [constraints_i, (Xi(:,end)-ci(:,i))'*param.Pi{i}*(Xi(:,end)-ci(:,i))...
-%                                    <= alpha_i(i)^2];
-%     % Augmented Lagrangian
-%     objective_i = objective_i + y_Ni.alpha_Ni'*(diag(alpha_Ni) - z_Ni.alpha_Ni) +...
-%                    y_Ni.c_Ni'*(c_Ni - z_Ni.c_Ni)+ rho/2*...
-%                   (diag(alpha_Ni) - z_Ni.alpha_Ni)'*(diag(alpha_Ni) - z_Ni.alpha_Ni)...
-%                   +rho/2 *(c_Ni - z_Ni.c_Ni)'*(c_Ni - z_Ni.c_Ni);
-%     ops = sdpsettings('solver', 'MOSEK', 'verbose',0); %options
-%    
-%     parameters_in = {X0};
-%     solutions_out = {Ui, Uei, di, X_Ni, X_eNi, diag(alpha_Ni), c_Ni};
-%     mpc_optimizer = optimizer(constraints_i,objective_i,ops,parameters_in,solutions_out);
-%     solutionSet = mpc_optimizer(x0);
-    
+    vi.di = solutionSet{3};    
 end
 
-function localOptimizer = init_optimizer(x0, i, N, param, rho, Q_Ni, Ri)
+function localOptimizer = init_optimizer(x0, i, N, param, rho, Q_Ni, Ri, y_x_Ni,...
+                                         y_x_eNi, y_alpha_Ni, y_c_Ni)
     objective_i = 0;
     constraints_i = [];
     ni = param.ni;
@@ -184,11 +111,7 @@ function localOptimizer = init_optimizer(x0, i, N, param, rho, Q_Ni, Ri)
     z_x_eNi = sdpvar(n_Ni, 1, 'full');
     z_alpha_Ni = sdpvar(n_Ni,1, 'full');
     z_c_Ni = sdpvar(n_Ni,1, 'full');
-    
-    y_x_Ni = sdpvar(n_Ni, N ,'full');   
-    y_x_eNi = sdpvar(n_Ni, 1, 'full');
-    y_alpha_Ni = sdpvar(n_Ni,1, 'full');
-    y_c_Ni = sdpvar(n_Ni,1,'full'); 
+   
     
     % For the augmented Lagrangian
     eX_Ni_L = sdpvar(N,1,'full');  
@@ -231,8 +154,8 @@ function localOptimizer = init_optimizer(x0, i, N, param, rho, Q_Ni, Ri)
     constraints_i = [constraints_i, X_eNi(idx_Ni)==Xei];
     constraints_i = [constraints_i, Uei == param.K_Ni{i}*X_eNi + di];  
     
-    constraints_i = [constraints_i, eX_eNi_Q >= y_x_eNi'*(X_eNi-z_x_eNi), ...
-                                    eX_eNi_L >= rho/2 * (X_eNi-z_x_eNi)'*(X_eNi-z_x_eNi)];
+    constraints_i = [constraints_i, eX_eNi_Q == y_x_eNi'*(X_eNi-z_x_eNi), ...
+                                    eX_eNi_L == rho/2 * (X_eNi-z_x_eNi)'*(X_eNi-z_x_eNi)];
     % augmented Lagrangian
    objective_i = objective_i + eX_eNi_L+ eX_eNi_Q ;
     %% Planning Horizon Loop
@@ -243,15 +166,15 @@ function localOptimizer = init_optimizer(x0, i, N, param, rho, Q_Ni, Ri)
                                        X_eNi, Uei, Q_Ni{i}, Ri{i});
                                    
         % augmented Lagrangian     
-        constraints_i = [constraints_i, eX_Ni_L(n) >= y_x_Ni(:,n)'*(X_Ni(:,n)-z_x_Ni(:,n)),...
-                        eX_Ni_Q(n) >= rho/2 * (X_Ni(:,n)-z_x_Ni(:,n))'*(X_Ni(:,n)-z_x_Ni(:,n))];
+        constraints_i = [constraints_i, eX_Ni_L(n) == y_x_Ni(:,n)'*(X_Ni(:,n)-z_x_Ni(:,n)),...
+                        eX_Ni_Q(n) == rho/2 * (X_Ni(:,n)-z_x_Ni(:,n))'*(X_Ni(:,n)-z_x_Ni(:,n))];
       
     end
     constraints_i = [constraints_i, X_Ni(idx_Ni,N) == Xi(:,N)]; 
     
     % Augmented Lagrangian at Horizon N + equilibrium
-    constraints_i = [constraints_i, eX_Ni_L(N) >= y_x_Ni(:,N)'*(X_Ni(:,N)-z_x_Ni(:,N)),... 
-                     eX_Ni_Q(N) >= rho/2 * (X_Ni(:,N)-z_x_Ni(:,N))'*(X_Ni(:,N)-z_x_Ni(:,N))];
+    constraints_i = [constraints_i, eX_Ni_L(N) == y_x_Ni(:,N)'*(X_Ni(:,N)-z_x_Ni(:,N)),... 
+                     eX_Ni_Q(N) == rho/2 * (X_Ni(:,N)-z_x_Ni(:,N))'*(X_Ni(:,N)-z_x_Ni(:,N))];
     objective_i = objective_i + sum(eX_Ni_L) + sum(eX_Ni_Q);
                
   
@@ -266,9 +189,9 @@ function localOptimizer = init_optimizer(x0, i, N, param, rho, Q_Ni, Ri)
     constraints_i = [constraints_i, (Xi(:,end)-ci(:,i))'*param.Pi{i}*(Xi(:,end)-ci(:,i))...
                                    <= alpha_i(i)^2];
     % Augmented Lagrangian
-    constraints_i = [constraints_i, eTerm_L >= y_alpha_Ni'*(diag(alpha_Ni) - z_alpha_Ni) +...
+    constraints_i = [constraints_i, eTerm_L == y_alpha_Ni'*(diag(alpha_Ni) - z_alpha_Ni) +...
                                     y_c_Ni'*(c_Ni - z_c_Ni),...
-                                    eTerm_Q >= rho/2*(diag(alpha_Ni) - z_alpha_Ni)'...
+                                    eTerm_Q == rho/2*(diag(alpha_Ni) - z_alpha_Ni)'...
                                     *(diag(alpha_Ni) - z_alpha_Ni) + rho/2 ...
                                     *(c_Ni - z_c_Ni)'*(c_Ni - z_c_Ni)];
     
@@ -278,8 +201,7 @@ function localOptimizer = init_optimizer(x0, i, N, param, rho, Q_Ni, Ri)
    ops.mosek.MSK_IPAR_INFEAS_REPORT_AUTO = 'MSK_ON';
     
     parameters_in = {z_x_Ni, z_x_eNi, z_alpha_Ni,...
-                     z_c_Ni, y_x_Ni, y_x_eNi, y_alpha_Ni,...
-                     y_c_Ni };
+                     z_c_Ni};
                  
     solutions_out = {Ui, Uei, di, X_Ni, X_eNi, diag(alpha_Ni), c_Ni};
     localOptimizer = optimizer(constraints_i,objective_i,ops,parameters_in,solutions_out);
