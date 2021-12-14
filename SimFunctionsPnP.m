@@ -158,12 +158,15 @@ classdef SimFunctionsPnP
             % non-activated DGU, resulting in NaN in the states which are given
             % again to yalmip which does not support NaN as x0
             X(:) = {horzcat(x0{:})}; 
-
-            N = 10; % Horizon
-            clear mpc_online_2
+            controllerType = functions(controller);
+            fprintf("--INFO: Using controller %s -- \n ", controllerType.function);
+            clear controllerType.file
+             
+            N = 5; % Horizon
+       
             for n = 1:length_sim % loop over all subsystem
                 % control input is of size nu x M 
-                U{n} = controller(X{n}, param.K_Ni, Q_Ni, Ri, param.Pi, N, param); % get first control input
+                U{n} = controller(X{n}, Q_Ni, Ri, N, param); % get first control input
                 if isnan(U{n})
                     error("Input to apply to controller is Nan at iteration %d",n);
                 end

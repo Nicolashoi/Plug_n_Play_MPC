@@ -1,15 +1,15 @@
-function u0 = mpc_online_2(x0, Ki, Q_Ni, Ri, Pi, N, param)
+function u0 = trackingMPC_reconf(x0, Q_Ni, Ri, N, param)
     persistent mpc_optimizer
     % initialize controller, if not done already
     if isempty(mpc_optimizer)
-        mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param);
+        mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param);
     end
     [u0, ~, ~, ~, ~, feasibility]= mpc_optimizer(x0);
     %disp(feasibility.infostr);
      %sol = mpc_optimizer(x0);
 end
  
-function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
+function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
     M = param.nb_subsystems;%length(param.activeDGU);
     %% create variables for optimizer
     nx = param.ni;
@@ -56,7 +56,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
         %% Equilibrium constraints
         constraints = [constraints, Xe(:,i) == param.A_Ni{i}*X_eNi{i} + ...
                                                 param.Bi{i}*Ue(:,i)];
-        constraints = [constraints, Ue(:,i) == Ki{i}*X_eNi{i} + di(:,i)];  
+        constraints = [constraints, Ue(:,i) == param.K_Ni{i}*X_eNi{i} + di(:,i)];  
         
         %% Constraints corresponding to Eq 10, 11 and 12 in the Paper
         % Online Computation of Terminal Ingredients in Distributed Model
@@ -75,7 +75,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
                             alpha(neighbors_i(j))*(param.Wij{i}{neighbors_i(j)})'*... 
                             (param.Wij{i}{neighbors_i(j)});
              c_Ni{i} = c_Ni{i} + param.Wij{i}{neighbors_i(j)}'*ci(:,neighbors_i(j));
-             Pij = (param.Wij{i}{neighbors_i(j)})'*Pi{neighbors_i(j)}...
+             Pij = (param.Wij{i}{neighbors_i(j)})'*param.Pi{neighbors_i(j)}...
                     *(param.Wij{i}{neighbors_i(j)});
              sumLambdaP_ij = sumLambdaP_ij + ...
                              lambda{i}(j)*Pij;
@@ -83,30 +83,30 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
              sumLambda_ij = sumLambda_ij + lambda{i}(j);                   
         end
         %% Equation 10
-        LMI_1 = [inv(Pi{i})*alpha(i), (param.A_Ni{i}+param.Bi{i}*Ki{i})*alpha_Ni{i},...
-               (param.A_Ni{i}+param.Bi{i}*Ki{i})*c_Ni{i} + param.Bi{i}*di(:,i) - ci(:,i)];
-        LMI_2 = [((param.A_Ni{i}+param.Bi{i}*Ki{i})*alpha_Ni{i})', sumLambdaP_ij,...
-                zeros(size(sumLambdaP_ij,1), size(ci(:,i),2))];
-        LMI_3 = [((param.A_Ni{i}+param.Bi{i}*Ki{i})*c_Ni{i} + param.Bi{i}*di(:,i) - ci(:,i))',...
-                    zeros(size(alpha(i),1),size(sumLambdaP_ij,2)) , alpha(i) - sumLambda_ij];
-                 
-        LMI = [LMI_1; LMI_2; LMI_3];
+%         LMI_1 = [inv(param.Pi{i})*alpha(i), (param.A_Ni{i}+param.Bi{i}*param.K_Ni{i})*alpha_Ni{i},...
+%                (param.A_Ni{i}+param.Bi{i}*param.K_Ni{i})*c_Ni{i} + param.Bi{i}*di(:,i) - ci(:,i)];
+%         LMI_2 = [((param.A_Ni{i}+param.Bi{i}*param.K_Ni{i})*alpha_Ni{i})', sumLambdaP_ij,...
+%                 zeros(size(sumLambdaP_ij,1), size(ci(:,i),2))];
+%         LMI_3 = [((param.A_Ni{i}+param.Bi{i}*param.K_Ni{i})*c_Ni{i} + param.Bi{i}*di(:,i) - ci(:,i))',...
+%                     zeros(size(alpha(i),1),size(sumLambdaP_ij,2)) , alpha(i) - sumLambda_ij];
+%                  
+%         LMI = [LMI_1; LMI_2; LMI_3];
         %constraints = [constraints, LMI>=0];    
         
         %% Equation 14: Approx of LMI with diagonal dominance
-        PiInv = inv(Pi{i});
-        constraints = [constraints, (param.A_Ni{i}+param.Bi{i}*Ki{i})...
+        PiInv = inv(param.Pi{i});
+        constraints = [constraints, (param.A_Ni{i}+param.Bi{i}*param.K_Ni{i})...
                        *c_Ni{i} + param.Bi{i}*di(:,i) - ci(:,i) == bi(:,i)];
         constraints = [constraints, alpha(i)-sumLambda_ij >= sum(bi(:,i))];    
         for k= 1:ni
             nondiag1 = sum(abs(PiInv(k,:))*alpha(i))- abs(PiInv(k,k))*alpha(i)+...
-                       sum(abs(param.A_Ni{i}(k,:)+ param.Bi{i}(k)*Ki{i}(:))*alpha_Ni{i})...
+                       sum(abs(param.A_Ni{i}(k,:)+ param.Bi{i}(k)*param.K_Ni{i}(:))*alpha_Ni{i})...
                        + bi(k,i);
             constraints = [constraints, PiInv(k,k)*alpha(i) >= nondiag1];       
         end
         for k=1:n_Ni
             nondiag2 = sum(AbsSumLambdaP_ij(k,:)) - AbsSumLambdaP_ij(k,k) + ...
-                       sum(abs(param.A_Ni{i}(:,k)+ param.Bi{i}(:)*Ki{i}(k))*alpha(i));
+                       sum(abs(param.A_Ni{i}(:,k)+ param.Bi{i}(:)*param.K_Ni{i}(k))*alpha(i));
             constraints = [constraints, sumLambdaP_ij(k,k) >= nondiag2];
         end
         %% Equation 11
@@ -115,7 +115,7 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
             for j=1:length(neighbors_i)
                 sum_GxNorm2 = sum_GxNorm2 + norm(param.Gx_Ni{i}(k,:)*...
                              (param.Wij{i}{neighbors_i(j)})'*...
-                              Pi{neighbors_i(j)}^(-1/2),2) * alpha(neighbors_i(j));
+                              param.Pi{neighbors_i(j)}^(-1/2),2) * alpha(neighbors_i(j));
                 
             end
             constraints = [constraints, param.Gx_Ni{i}(k,:)*c_Ni{i} + sum_GxNorm2 ...
@@ -125,12 +125,12 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
         for k=1:size(param.Gu_i{i},1) 
             sum_GuNorm2 = 0;
             for j=1:length(neighbors_i)
-                sum_GuNorm2 = sum_GuNorm2 + norm(param.Gu_i{i}(k,:)*Ki{i}*...
+                sum_GuNorm2 = sum_GuNorm2 + norm(param.Gu_i{i}(k,:)*param.K_Ni{i}*...
                              (param.Wij{i}{neighbors_i(j)})'*...
-                              Pi{neighbors_i(j)}^(-1/2),2) * alpha(neighbors_i(j));
+                              param.Pi{neighbors_i(j)}^(-1/2),2) * alpha(neighbors_i(j));
                 
             end
-            constraints = [constraints, param.Gu_i{i}(k,:)*Ki{i}*c_Ni{i} + ...
+            constraints = [constraints, param.Gu_i{i}(k,:)*param.K_Ni{i}*c_Ni{i} + ...
                            param.Gu_i{i}(k,:)*di(:,i) + sum_GxNorm2...
                            <= param.fu_i{i}(k)];    
         end
@@ -161,11 +161,11 @@ function mpc_optimizer = init_optimizer(Ki, Q_Ni, Ri, Pi, N, param)
         end
         %% Terminal cost
         objective = objective + ... 
-                    (X{end}(:,i)-Xe(:,i))'*Pi{i}*(X{end}(:,i)-Xe(:,i))+...
+                    (X{end}(:,i)-Xe(:,i))'*param.Pi{i}*(X{end}(:,i)-Xe(:,i))+...
                     (Xe(:,i) - param.Xref{i})'*S{i}*(Xe(:,i) - param.Xref{i});
                         
         %%  Terminal Set condition
-        constraints = [constraints, (X{end}(:,i)-ci(:,i))'*Pi{i}*(X{end}(:,i)-ci(:,i))...
+        constraints = [constraints, (X{end}(:,i)-ci(:,i))'*param.Pi{i}*(X{end}(:,i)-ci(:,i))...
                                     <= alpha(i)^2];      
 
     end    
