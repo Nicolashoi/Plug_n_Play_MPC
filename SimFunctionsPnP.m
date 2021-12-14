@@ -104,20 +104,34 @@ classdef SimFunctionsPnP
     
         %-----------------------TRANSITION PHASE-------------------------------%
         function [X, U, lenSim, xs, us, alpha] = transitionPhase(x0, paramBefore,...
-                                                         paramAfter, Qi, Ri, target)
+                                                         paramAfter, Qi, Ri, target, ADMM)
+            N = 5; %Horizon 
             % compute steady state
-            [xs, us, alpha] = transition_compute_ss(horzcat(x0{:}), 10, paramBefore,...
+            if ADMM
+                disp("Using ADMM !");
+                [xs, us, alpha] = transition_compute_ss_admm(horzcat(x0{:}), 10, paramBefore,...
                                     paramAfter, target);
+            elseif ~ADMM
+                disp("Not using ADMM !");
+                [xs, us, alpha] = transition_compute_ss(horzcat(x0{:}), 10, paramBefore,...
+                                    paramAfter, target);
+            else
+                disp("Error: Choose ADMM to be true or false");
+                
+            end
 
             % MPC REGULATION to steady state
             X{1} = horzcat(x0{:});
-            N = 10; % Horizon for regulation
             clear regulation2ss
             n = 1;
             while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 1e-3) || ...
                   any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 1e-3)    
                     % control input is of size nu x M 
-                    U{n} = regulation2ss(X{n}, N, paramBefore, xs, us, Qi, Ri); % get first control input
+                    if ADMM
+                        U{n} = regulation2ss(X{n}, N, paramBefore, xs, us, Qi, Ri); % get first control input
+                    else
+                        U{n} = regulation2ss(X{n}, N, paramBefore, xs, us, Qi, Ri); % get first control input
+                    end
                     if isnan(U{n})
                         error("Input to apply to controller is Nan at iteration %d",n);
                     end
@@ -149,7 +163,7 @@ classdef SimFunctionsPnP
         %% ------------------------- MPC CONTROLLERS--------------------------%%
         %----- TRACKING MPC WITH RECONFIGURABLE TERMINAL INGREDIENTS ----------%
         function [X,U] = mpc_DGU_tracking(controller, x0, length_sim,param, Q_Ni,...
-                                          Ri, ADMM)
+                                          Ri)
                                       
             X = cell(1,length_sim+1,1); % state at each timestep
             U = cell(1, length_sim); % control input at each timestep

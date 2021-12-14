@@ -17,10 +17,10 @@ function u0 = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
         y_Ni{i,1}.c_Ni = zeros(length(neighbors_i)*param.ni,1); 
 
     end
-    % Loop while terminal terminal time not overrunned
+    
     while(Tk < TMAX)
         for i=param.activeDGU % for each subsystems
-            % Solve a local optimization problem for each subsystem i
+            % Solve a local optimizati% Loop while terminal terminal time not overrunnedon problem for each subsystem i
             [w_Ni{i,k}, vi{i,k}, elapsedTime] = local_optim(i,k, x0, Q_Ni, Ri, N,...
                                                 param, z_Ni{i,l}, y_Ni{i,l}, rho);
             Tk = Tk + elapsedTime;

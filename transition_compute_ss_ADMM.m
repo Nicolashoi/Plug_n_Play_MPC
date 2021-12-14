@@ -1,9 +1,14 @@
 
-function [xs, us, alpha] = transition_compute_ss_ADMM(x0, N, paramBefore, paramAfter, target)
+function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
+                                                           paramAfter, target)
     rho = 0.25;
-    TMAX = 40;
+    TMAX = 100;
     Tk = 0; k = 2; l=1;
+    % all the DGU concerned i.e. M U P (actual network + DGU's to be plugged in
+    % or out
     unionDGU = union(paramBefore.activeDGU,paramAfter.activeDGU);
+    % Initialization
+    % DGUs active before PnP
     for i= paramBefore.activeDGU
         neighbors_i = sort([i;neighbors(paramBefore.NetGraph, i)]);
         z_Ni{i,1}.x_Ni = zeros(length(neighbors_i)*paramBefore.ni,N);
@@ -11,42 +16,45 @@ function [xs, us, alpha] = transition_compute_ss_ADMM(x0, N, paramBefore, paramA
         y_Ni{i,1}.x_Ni = zeros(length(neighbors_i)*paramBefore.ni,N);
         y_Ni{i,1}.x_eNi = zeros(length(neighbors_i)*paramBefore.ni,1);
     end
-    
+    % DGUs active after PnP
     for i= paramAfter.activeDGU
         neighbors_i = sort([i;neighbors(paramAfter.NetGraph, i)]);
         z_Ni{i,1}.x_Ni_mod = zeros(length(neighbors_i)*paramAfter.ni,N);
         z_Ni{i,1}.alpha_Ni = zeros(length(neighbors_i)*paramAfter.ni,1);
         z_Ni{i,1}.c_Ni = zeros(length(neighbors_i)*paramAfter.ni,1); 
+        % x_Ni_mod for states after plug in / out (horizon N+1 -> 2N)
         y_Ni{i,1}.x_Ni_mod = zeros(length(neighbors_i)*paramAfter.ni,N);
         y_Ni{i,1}.alpha_Ni = zeros(length(neighbors_i)*paramAfter.ni,1);
         y_Ni{i,1}.c_Ni = zeros(length(neighbors_i)*paramAfter.ni,1); 
     end
+    % Loop while terminal terminal time not overrunned
     while(Tk < TMAX)
-        tStart  =tic;
-    %% Constraints: Outer loop over subsystems, inner loop over Horizon
         for i = unionDGU % loop over all subsystems
-            
-          [w_Ni{i,k}, vi{i,k}] = local_optim(i, k, x0, N, paramBefore, paramAfter,...
+            [w_Ni{i,k}, vi{i,k}, elapsedTime] = local_optim(i,k, x0, N, paramBefore, paramAfter,...
                                  z_Ni{i,l}, y_Ni{i,l}, rho, target);
+            Tk = Tk + elapsedTime; 
+            % Obtain the sorted list of neighbors of system i
             neighbors_i = sort([i;union(neighbors(paramBefore.NetGraph, i), ...
                                 neighbors(paramBefore.NetGraph, i))]);
-            for j = neighbors_i'
+                           
+            for j = neighbors_i'% Update local copy of system i
+                % estimation of neighbors j by system i
                 wi{j,k,i}.xi = horzcat(paramBefore.Wij{i}{j}*w_Ni{i,k}.x_Ni,...
-                                       paramAfter.Wij{i}{j}*w_Ni{i,k}.x_Ni_mod);% estimation of neighbors j by system i
-                                   
+                                       paramAfter.Wij{i}{j}*w_Ni{i,k}.x_Ni_mod);
                 wi{j,k,i}.xei = paramBefore.Wij{i}{j}*w_Ni{i,k}.x_eNi;
                 extract_alpha_i = paramAfter.Wij{i}{j}*w_Ni{i,k}.alpha_Ni;
                 wi{j,k,i}.alpha_i = extract_alpha_i(1); %array was alpha*dim(ni)
                 wi{j,k,i}.ci = paramAfter.Wij{i}{j}*w_Ni{i,k}.c_Ni;
             end
         end  
-        
+        % Update global copy of each subsystem
         for i = unionDGU
             neighbors_i = sort([i;union(neighbors(paramBefore.NetGraph, i), ...
                                 neighbors(paramBefore.NetGraph, i))]);
+            %each subsystem i averages it's state over the set of neighbors
             zi{i,k} = update_global_copy(wi(i,k,neighbors_i));
         end
-        
+        % Share the global copy with all the neighbors (update the Ni states)
         for i=paramBefore.activeDGU
             neighbors_i = sort([i;neighbors(paramBefore.NetGraph, i)]);
             xi_cellBefore = cellfun(@(x) x.xi(:,1:N), zi(neighbors_i,k), 'Un', false);
@@ -54,7 +62,7 @@ function [xs, us, alpha] = transition_compute_ss_ADMM(x0, N, paramBefore, paramA
             xei_cell =  cellfun(@(x) x.xei, zi(neighbors_i,k), 'Un', false);
             z_Ni{i,k}.x_eNi = vertcat(xei_cell{:});
         end
-        
+        % variables at Horizoon > N (for the new Network topology)
         for i=paramAfter.activeDGU
             neighbors_i = sort([i;neighbors(paramAfter.NetGraph, i)]);
             xi_cellAfter = cellfun(@(x) x.xi(:,N+1:end), zi(neighbors_i,k), 'Un', false);
@@ -69,9 +77,8 @@ function [xs, us, alpha] = transition_compute_ss_ADMM(x0, N, paramBefore, paramA
             y_Ni{i,k} = add_struct(y_Ni{i,l}, ...
                             structfun(@(x) rho.*x, y_Ni_inter, 'Un', false)) ; 
         end
-        
-        Tk = Tk + toc(tStart);
-        % HERE PUT CONDITION FOR TERMINATION
+        % Terminal condition which is centralized (good for having an estimate 
+        % of how much time iteration are needed
         r_norm{k} = 0;
         s_norm{k} = 0;
         for i = unionDGU
@@ -80,33 +87,37 @@ function [xs, us, alpha] = transition_compute_ss_ADMM(x0, N, paramBefore, paramA
             s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
             s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
         end
-        if r_norm{k} < 1 && s_norm{k} < 1
+        if r_norm{k} < 0.5 && s_norm{k} < 0.5
             break;
         end
-        fprintf("Iteration %d,  Time elapsed %d \n", l, Tk);
+        fprintf("Iteration %d,  Time elapsed for each iteration %d \n", l, Tk);
         k = k+1;
         l = l+1;
-    
+       
     end
     xs = zeros(paramBefore.ni, paramBefore.nb_subsystems);
     us = zeros(paramBefore.nu, paramBefore.nb_subsystems);
+    alpha = zeros(paramBefore.nb_subsystems,1);
     for i=unionDGU
         xs(:,i) = wi{i,end,i}.xei;
         us(:,i) = vi{i,end}.uei;
+        alpha(i) = wi{i,end,i}.alpha_i;
     end
 end
 
-
-function [w_Ni, vi] = local_optim(i, k, x0, N, paramBefore, paramAfter, z_Ni, y_Ni, rho, target)
+function [w_Ni, vi, elapsedTime] = local_optim(i,k, x0, N, paramBefore, paramAfter,z_Ni, y_Ni,...
+                                  rho, target)
     persistent localOptimizer
     if k==2
-        localOptimizer{i} = init_optimizer(x0,i,N, paramBefore, paramAfter, rho, target);
+        localOptimizer{i} = init_optimizer(x0,i, N,paramBefore, paramAfter,rho,...
+                                            target);
     end
-    solutionSet = localOptimizer{i}(z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.x_Ni_mod, z_Ni.alpha_Ni,...
-                     z_Ni.c_Ni, y_Ni.x_Ni, y_Ni.x_eNi, y_Ni.x_Ni_mod, y_Ni.alpha_Ni,...
-                     y_Ni.c_Ni);
-%     solutionsSet = localOptimizer{i}(x0, z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.x_Ni_mod, z_Ni.alpha_Ni,...
-%                      z_Ni.c_Ni);
+                                
+    [solutionSet, ~, ~, ~, ~, optimTime] = localOptimizer{i}(z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni, z_Ni.c_Ni, ...
+                     y_Ni.x_Ni, y_Ni.x_eNi, y_Ni.alpha_Ni, y_Ni.c_Ni);
+    if optimTime.problem
+        error("Steady-state not found, Optimization problem: P&P rejected");
+    end
     w_Ni.x_Ni = solutionSet{4};
     w_Ni.x_Ni_mod = solutionSet{5};
     w_Ni.x_eNi = solutionSet{6};
@@ -115,151 +126,115 @@ function [w_Ni, vi] = local_optim(i, k, x0, N, paramBefore, paramAfter, z_Ni, y_
     vi.ui = solutionSet{1};
     vi.uei = solutionSet{2};
     vi.di = solutionSet{3};
+    elapsedTime= optimTime.solvertime;
+
 end
 
-function localOptimizer = init_optimizer(x0, i, N, paramBefore, paramAfter, rho, target)
+function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter, rho, target)
     objective_i = 0;
     constraints_i = [];
+    % Param
     ni = paramBefore.ni;
     nu = paramBefore.nu;
     M = paramBefore.nb_subsystems;
-    n_Ni_before = size(paramBefore.A_Ni{i},2); % size of Neighbors set before PnP
-    n_Ni_after = size(paramAfter.A_Ni{i},2);% size of Neighbors set after PnP
+    % changing size parameters
+    n_Ni_before = size(paramBefore.A_Ni{i},2); % size Neighbors's set former topology
+    n_Ni_after = size(paramAfter.A_Ni{i},2); % size Neighbors's set new topology
     
     % variables as input to optimizer object
-    %X0 = sdpvar(ni,M,'full'); % state as rows and system number as column
+    % global copies
     z_Ni.x_Ni = sdpvar(n_Ni_before, N, 'full');
     z_Ni.x_eNi = sdpvar(n_Ni_before, 1, 'full');
     z_Ni.x_Ni_mod = sdpvar(n_Ni_after, N, 'full');
     z_Ni.alpha_Ni = sdpvar(n_Ni_after,1, 'full');
     z_Ni.c_Ni = sdpvar(n_Ni_after,1, 'full');
-    
+    % lagrangian
     y_Ni.x_Ni = sdpvar(n_Ni_before, N ,'full');   
     y_Ni.x_eNi = sdpvar(n_Ni_before, 1, 'full');
     y_Ni.x_Ni_mod = sdpvar(n_Ni_after, N, 'full'); 
     y_Ni.alpha_Ni = sdpvar(n_Ni_after,1, 'full');
     y_Ni.c_Ni = sdpvar(n_Ni_after,1,'full'); 
-   
-    eX_Ni_L = sdpvar(N,1,'full');  
-    eX_eNi_L = sdpvar(1, 1, 'full');
-    eX_Ni_mod_L = sdpvar(N,1, 'full'); 
-    eTerm_L = sdpvar(1,1, 'full');
-
-    eX_Ni_Q = sdpvar(N,1,'full');  
-    eX_eNi_Q = sdpvar(1, 1, 'full');
-    eX_Ni_mod_Q = sdpvar(N,1, 'full'); 
-    eTerm_Q = sdpvar(1,1, 'full');
     
-    % Variables for 1st optimization part (DGU PnP active but disconnected from
-    % the rest of the network
+    % States and Input of subsystem i
     Xi = sdpvar(ni,2*N, 'full');
     Ui = sdpvar(nu,2*N-1, 'full');
+    % Variables for 1st optimization part, optimization to reach
+    % equilibrium/steady state for the old network topology
+    Uei = sdpvar(nu,1,'full');
+    di = sdpvar(nu,1,'full');
     X_eNi = sdpvar(n_Ni_before,1,'full'); % neighbor equilibrium state i
     X_Ni = sdpvar(n_Ni_before, N, 'full');
     Xei = sdpvar(ni,1,'full');
-    Uei = sdpvar(nu,1,'full');
-    di = sdpvar(nu,1,'full');
     
-    % Variables for 2nd optimization part (DGU PnP active and connected to
-    % the rest of the network
+    % Variables for 2nd optimization part, on new topology (system dynamics
+    % influenced by neighbors
     X_Ni_mod = sdpvar(n_Ni_after, N, 'full');
-    ci = sdpvar(ni,M,'full');
+    ci = sdpvar(ni,M,'full'); % Parameters for terminal set constraints
     alpha_i = sdpvar(1,M,'full');
     lambda_i = sdpvar(n_Ni_after,1,'full');
     bi = sdpvar(ni,1, 'full');
-    
-    %% CONSTRAINTS DYNAMICS AND OBJECTIVE
+   
     constraints_i = [constraints_i, Xi(:,1) == x0(:,i)];
     % INCLUDE ??
     %constraints_i = [constraints_i, X_Ni(:,1) == vertcat(x0{neighbors_i})];
     neighbors_i = sort([i;neighbors(paramBefore.NetGraph, i)]);
     idx_Ni = logical(kron((neighbors_i==i), ones(ni,1)));
-    % Equilibrium constraints
+    %% Equilibrium constraints
     constraints_i = [constraints_i, Xei == paramBefore.A_Ni{i}*X_eNi + ...
                                             paramBefore.Bi{i}*Uei];
     constraints_i = [constraints_i, X_eNi(idx_Ni)==Xei];
     % With new redesigned local passive feedback gains
     constraints_i = [constraints_i, Uei == paramAfter.Ki{i}*Xei + di];  
-    %constraints_i = [constraints_i,  paramAfter.Gx_Ni{i}*X_eNi <= paramAfter.fx_Ni{i}];
-    constraints_i = [constraints_i, eX_eNi_Q == y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi), ...
-                                    eX_eNi_L == rho/2 * (X_eNi-z_Ni.x_eNi)'*(X_eNi-z_Ni.x_eNi)];
-                                
-%     objective_i = objective_i + eX_eNi_L; %+ eX_eNi_Q ;
-    % Planning Horizon Loop
+   
+    %% Planning Horizon Loop 1->N for the 1st Optimization Part
     for n = 1:N-1 
-        % Distributed Dynamics
+        % Distributed Dynamics for old topology
         [constraints_i, objective_i] = dynamicsConstraintsBeforePnP(constraints_i,objective_i,...
                                         n, i, paramBefore, idx_Ni,Xi,X_Ni,Ui,...
                                         x0(:,i), Xei, target);
-%        % augmented Lagrangian     
-        constraints_i = [constraints_i, eX_Ni_L(n) == y_Ni.x_Ni(:,n)'*(X_Ni(:,n)-z_Ni.x_Ni(:,n)),...
-                                        eX_Ni_Q(n) == rho/2 * (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n))];
-                 
+       % augmented Lagrangian         
+       objective_i = objective_i + y_Ni.x_Ni(:,n)'*(X_Ni(:,n)-z_Ni.x_Ni(:,n)) + ...
+                     rho/2 * (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n));
     end
     % Terminal steady state condition for 1st optimization part
     constraints_i = [constraints_i, Xi(:,N) == Xei]; 
     constraints_i = [constraints_i, X_Ni(idx_Ni,N) == Xi(:,N)];
-    % Augmented Lagrangian at Horizon N + equilibrium
-    constraints_i = [constraints_i, eX_Ni_L(N) == y_Ni.x_Ni(:,N)'*(X_Ni(:,N)-z_Ni.x_Ni(:,N)),... 
-                     eX_Ni_Q(N) == rho/2 * (X_Ni(:,N)-z_Ni.x_Ni(:,N))'*(X_Ni(:,N)-z_Ni.x_Ni(:,N))];
-%     objective_i = objective_i + sum(eX_Ni_L);% + sum(eX_Ni_Q);
-    
-    %% 2nd Optimization Part
-    % Terminal Set constraints
-    [constraints_i, alpha_Ni, c_Ni] = terminalConstraints(constraints_i, paramAfter,i,...
-         ci, di,  alpha_i, lambda_i, bi);
-    
-    [constraints_i, objective_i] = dynamicsConstraintsAfterPnP(constraints_i, ...
-                                        objective_i, N, i, paramAfter, Xi, X_Ni_mod,...
-                                        Ui, y_Ni, z_Ni, eX_Ni_mod_L,eX_Ni_mod_Q, rho);
-  
-    % Terminal Set constraints
-     constraints_i = [constraints_i, (Xi(:,end)-ci(:,i))'*paramAfter.Pi{i}*(Xi(:,end)-ci(:,i))...
-                                   <= alpha_i(i)^2];
-    %Augmented Lagrangian
-    constraints_i = [constraints_i, eTerm_L == y_Ni.alpha_Ni'*(diag(alpha_Ni) - z_Ni.alpha_Ni) +...
-                                    y_Ni.c_Ni'*(c_Ni - z_Ni.c_Ni),...
-                                    eTerm_Q == rho/2*(diag(alpha_Ni) - z_Ni.alpha_Ni)'...
-                                    *(diag(alpha_Ni) - z_Ni.alpha_Ni) + rho/2 ...
-                                    *(c_Ni - z_Ni.c_Ni)'*(c_Ni - z_Ni.c_Ni)];
-    
-    %objective_i = objective_i + eTerm_L +  eTerm_Q;           
-    
-    ops = sdpsettings('solver', 'MOSEK', 'verbose',2, 'showprogress', 1); %options
-    parameters_in = {z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.x_Ni_mod, z_Ni.alpha_Ni,...
-                     z_Ni.c_Ni, y_Ni.x_Ni, y_Ni.x_eNi, y_Ni.x_Ni_mod, y_Ni.alpha_Ni,...
-                     y_Ni.c_Ni};
+    % Augmented Lagrangian
+    objective_i = objective_i + y_Ni.x_Ni(:,N)'*(X_Ni(:,N)-z_Ni.x_Ni(:,N)) + ...
+                   y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi)+ ... 
+                   rho/2 * (X_Ni(:,N)-z_Ni.x_Ni(:,N))'*(X_Ni(:,N)-z_Ni.x_Ni(:,N))...
+                  + rho/2 * (X_eNi-z_Ni.x_eNi)'*(X_eNi-z_Ni.x_eNi);
+    %% 2nd Optimization Part N+1 -> 2N with new Network topology
+    % Dynamics once steady state has been reached at horizon N
+    constraints_i = dynamicsConstraintsAfterPnP(constraints_i, ...
+                                    objective_i, N, i, paramAfter, Xi, X_Ni_mod,...
+                                    Ui, y_Ni, z_Ni, rho);
 
+    % Reconfigurable Terminal Ingredients 
+    [constraints_i, alpha_Ni, c_Ni] = terminalConstraints(constraints_i, paramAfter,i,...
+     ci, di,  alpha_i, lambda_i, bi);
+
+    % Terminal Set constraints
+    constraints_i = [constraints_i, (Xi(:,end)-ci(:,i))'*paramAfter.Pi{i}*(Xi(:,end)-ci(:,i))...
+                               <= alpha_i(i)^2];
+    % Augmented Lagrangian
+    objective_i = objective_i + y_Ni.alpha_Ni'*(diag(alpha_Ni) - z_Ni.alpha_Ni) +...
+               y_Ni.c_Ni'*(c_Ni - z_Ni.c_Ni)+ rho/2*...
+              (diag(alpha_Ni) - z_Ni.alpha_Ni)'*(diag(alpha_Ni) - z_Ni.alpha_Ni)...
+              +rho/2 *(c_Ni - z_Ni.c_Ni)'*(c_Ni - z_Ni.c_Ni);
+
+    ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
+
+    parameters_in = {z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni, z_Ni.c_Ni, ...
+                 y_Ni.x_Ni, y_Ni.x_eNi,y_Ni.alpha_Ni, y_Ni.c_Ni};
     solutions_out = {Ui, Uei, di, X_Ni, X_Ni_mod, X_eNi, diag(alpha_Ni), c_Ni};
     localOptimizer = optimizer(constraints_i,objective_i,ops,parameters_in,solutions_out);
 end
 
 
-function [constraints_i, objective_i] = dynamicsConstraintsBeforePnP(constraints_i,objective_i,...
-                                        n, i, param, idx_Ni, Xi, X_Ni, Ui,...
-                                        x0_i, Xei, target)
-
-    constraints_i = [constraints_i, Xi(:,n+1) == param.A_Ni{i}*X_Ni(:,n)+...
-                                               param.Bi{i}*Ui(:,n)];
-    constraints_i = [constraints_i, X_Ni(idx_Ni,n) == Xi(:,n)];                                       
-    % State and input constraints
-    constraints_i = [constraints_i, param.Gx_i{i} * Xi(:,n)...
-                              <= param.fx_i{i}];
-    constraints_i = [constraints_i, param.Gu_i{i} * Ui(:,n)...
-                               <= param.fu_i{i}];
-    if target == "reference"
-        objective_i = objective_i + (Xei - param.Xref{i})'*(Xei - param.Xref{i});
-    elseif target == "current state"
-        objective_i = objective_i + 100*norm(Xei-x0_i,2);
-    else
-        disp("objective not well defined, choose reference or current state");
-    end
-end
-
-
 function [constraints_i, objective_i] = dynamicsConstraintsAfterPnP(constraints_i, ...
                                         objective_i, N, i, param, Xi, X_Ni_mod,...
-                                        Ui, y_Ni, z_Ni,eX_Ni_mod_L,eX_Ni_mod_Q, rho)
+                                        Ui, y_Ni, z_Ni, rho)
      
     % recompute neighbor set with parameters after Plug In / Plug Out
     neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
@@ -273,22 +248,38 @@ function [constraints_i, objective_i] = dynamicsConstraintsAfterPnP(constraints_
                                                    param.Bi{i}*Ui(:,n)];
         constraints_i = [constraints_i, param.Gx_Ni{i} * X_Ni_mod(:,n-N+1)...
                               <= param.fx_Ni{i}];
-        constraints_i = [constraints_i, param.Gu_i{i} * Ui(:,n)...
+       constraints_i = [constraints_i, param.Gu_i{i} * Ui(:,n)...
                                    <= param.fu_i{i}];   
-        constraints_i = [constraints_i, eX_Ni_mod_L(n-N+1) == y_Ni.x_Ni_mod(:,n-N+1)'*(X_Ni_mod(:,n-N+1)-...
-                        z_Ni.x_Ni_mod(:,n-N+1)), eX_Ni_mod_Q(n-N+1) == rho/2 *...
-                        (X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1))'*...
-                      (X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1))];
-                              
-%        objective_i = objective_i + y_Ni.x_Ni_mod(:,n-N+1)'*(X_Ni_mod(:,n-N+1)-...
-%                     z_Ni.x_Ni_mod(:,n-N+1))...
-%                      + rho/2 *(X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1))'...
-%                          *(X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1));
-     end   
-     objective_i = objective_i + sum(eX_Ni_mod_L) + sum(eX_Ni_mod_Q);
+                               
+       objective_i = objective_i + y_Ni.x_Ni_mod(:,n-N+1)'*(X_Ni_mod(:,n-N+1)-...
+                    z_Ni.x_Ni_mod(:,n-N+1))...
+                     + rho/2 *(X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1))'...
+                         *(X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1));
+     end
+                                                                        
+                                    
 end
 
+function [constraints_i, objective_i] = dynamicsConstraintsBeforePnP(constraints_i,objective_i,...
+                                        n, i, param, idx_Ni,Xi,X_Ni,Ui,...
+                                        x0_i, Xei, target)
 
+    constraints_i = [constraints_i, Xi(:,n+1) == param.A_Ni{i}*X_Ni(:,n)+...
+                                               param.Bi{i}*Ui(:,n)];
+    constraints_i = [constraints_i, X_Ni(idx_Ni,n) == Xi(:,n)];                                       
+    % State and input constraints
+    constraints_i = [constraints_i, param.Gx_i{i} * Xi(:,n)...
+                              <= param.fx_i{i}];
+    constraints_i = [constraints_i, param.Gu_i{i} * Ui(:,n)...
+                               <= param.fu_i{i}];
+    if target == "reference"
+        objective_i = objective_i + 100*(Xei - param.Xref{i})'*(Xei - param.Xref{i});%1*norm(Xei-param.Xref{i},2);
+    elseif target == "current state"
+        objective_i = objective_i + 100*(Xei-x0_i)'*(Xei-x0_i);
+    else
+        disp("objective not well defined, choose reference or current state");
+    end
+end
 
 function [constraints_i, alpha_Ni, c_Ni] = terminalConstraints(constraints_i, param,i,...
          ci, di,  alpha_i, lambda_i, bi)
