@@ -148,7 +148,8 @@ classdef SimFunctionsPnP
         
         %% ------------------------- MPC CONTROLLERS--------------------------%%
         %----- TRACKING MPC WITH RECONFIGURABLE TERMINAL INGREDIENTS ----------%
-        function [X,U] = mpc_DGU_tracking(controller, x0, length_sim,param, Q_Ni, Ri)
+        function [X,U] = mpc_DGU_tracking(controller, x0, length_sim,param, Q_Ni,...
+                                          Ri, ADMM)
                                       
             X = cell(1,length_sim+1,1); % state at each timestep
             U = cell(1, length_sim); % control input at each timestep

@@ -2,41 +2,46 @@ function u0 = onlineMPC2_ADMM_old3(x0,Q_Ni, Ri, N, param)
     rho = 0.25;
     TMAX = 40;
     Tk = 0; k = 2; l=1;
-     for i=param.activeDGU
-            neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
-            z_Ni{i,1}.x_Ni = zeros(length(neighbors_i)*param.ni,N);
-            z_Ni{i,1}.x_eNi = zeros(length(neighbors_i)*param.ni,1);
-            z_Ni{i,1}.alpha_Ni = zeros(length(neighbors_i)*param.ni,1);
-            z_Ni{i,1}.c_Ni = zeros(length(neighbors_i)*param.ni,1); 
-
-            y_Ni{i,1}.x_Ni = zeros(length(neighbors_i)*param.ni,N);
-            y_Ni{i,1}.x_eNi = zeros(length(neighbors_i)*param.ni,1);
-            y_Ni{i,1}.alpha_Ni = zeros(length(neighbors_i)*param.ni,1);
-            y_Ni{i,1}.c_Ni = zeros(length(neighbors_i)*param.ni,1); 
+    % Initialization   
+    for i=param.activeDGU
+        neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
+        % Initialize the global copy z
+        z_Ni{i,1}.x_Ni = zeros(length(neighbors_i)*param.ni,N);
+        z_Ni{i,1}.x_eNi = zeros(length(neighbors_i)*param.ni,1);
+        z_Ni{i,1}.alpha_Ni = zeros(length(neighbors_i)*param.ni,1);
+        z_Ni{i,1}.c_Ni = zeros(length(neighbors_i)*param.ni,1); 
+        % Initialize the Lagrange multipliers
+        y_Ni{i,1}.x_Ni = zeros(length(neighbors_i)*param.ni,N);
+        y_Ni{i,1}.x_eNi = zeros(length(neighbors_i)*param.ni,1);
+        y_Ni{i,1}.alpha_Ni = zeros(length(neighbors_i)*param.ni,1);
+        y_Ni{i,1}.c_Ni = zeros(length(neighbors_i)*param.ni,1); 
 
     end
+    % Loop while terminal terminal time not overrunned
     while(Tk < TMAX)
-        tStart  =tic;
-    %% Constraints: Outer loop over subsystems, inner loop over Horizon
-        for i=param.activeDGU % loop over all subsystems
-            
-          [w_Ni{i,k}, vi{i,k}] = local_optim(i,k, x0, Q_Ni, Ri, N, param, z_Ni{i,l}, y_Ni{i,l}, rho);
-            % obtain sorted list of neighbors of system i
+        for i=param.activeDGU % for each subsystems
+            % Solve a local optimization problem for each subsystem i
+            [w_Ni{i,k}, vi{i,k}, elapsedTime] = local_optim(i,k, x0, Q_Ni, Ri, N,...
+                                                param, z_Ni{i,l}, y_Ni{i,l}, rho);
+            Tk = Tk + elapsedTime;
+            % Obtain the sorted list of neighbors of system i
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
-%             idx_Ni = logical(kron((neighbors_i==i), ones(param.ni,1)));
-            for j = neighbors_i'
-                wi{j,k,i}.xi = param.Wij{i}{j}*w_Ni{i,k}.x_Ni; % estimation of neighbors j by system i
+            for j = neighbors_i' % Update local copy of system i
+                % estimation of neighbors j by system i
+                wi{j,k,i}.xi = param.Wij{i}{j}*w_Ni{i,k}.x_Ni; 
                 wi{j,k,i}.xei = param.Wij{i}{j}*w_Ni{i,k}.x_eNi;
                 extract_alpha_i = param.Wij{i}{j}*w_Ni{i,k}.alpha_Ni;
                 wi{j,k,i}.alpha_i = extract_alpha_i(1); %array was alpha*dim(ni)
                 wi{j,k,i}.ci = param.Wij{i}{j}*w_Ni{i,k}.c_Ni;
             end
         end  
-        
+        % Update global copy of each subsystem
         for i = param.activeDGU
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
+            %each subsystem i averages it's state over the set of neighbors
             zi{i,k} = update_global_copy(wi(i,k,neighbors_i));
         end
+        % Share the global copy with all the neighbors (update the Ni states)
         for i=param.activeDGU
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
             % Update the global vector zNi
@@ -49,13 +54,14 @@ function u0 = onlineMPC2_ADMM_old3(x0,Q_Ni, Ri, N, param)
             z_Ni{i,k}.alpha_Ni = vertcat(alpha_i_cell{:});
             ci_cell = cellfun(@(x) x.ci, zi(neighbors_i,k), 'Un', false);
             z_Ni{i,k}.c_Ni = vertcat(ci_cell{:});
-            % Update Lagrange Multipliers
+            % Update the Lagrange Multipliers
             y_Ni_inter = diff_struct(w_Ni{i,k}, z_Ni{i,k});
             y_Ni{i,k} = add_struct(y_Ni{i,l}, ...
                             structfun(@(x) rho.*x, y_Ni_inter, 'Un', false)) ; 
         end
-        Tk = Tk + toc(tStart);
-        % HERE PUT CONDITION FOR TERMINATION LOOP OVER ALL SUBSYSTEMs   
+       
+        % Terminal condition which is centralized (good for having an estimate 
+        % of how much time iteration are needed
         r_norm{k} = 0;
         s_norm{k} = 0;
         for i = param.activeDGU
@@ -64,7 +70,7 @@ function u0 = onlineMPC2_ADMM_old3(x0,Q_Ni, Ri, N, param)
             s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
             s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
         end
-        if r_norm{k} < 1e-1 && s_norm{k} < 1e-1
+        if r_norm{k} < 0.5 && s_norm{k} < 0.5
             break;
         end
         fprintf("Iteration %d,  Time elapsed %d \n", l, Tk);
@@ -77,15 +83,14 @@ function u0 = onlineMPC2_ADMM_old3(x0,Q_Ni, Ri, N, param)
     end
 end
 
-function [w_Ni, vi] = local_optim(i,k, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni, rho)
+function [w_Ni, vi, elapsedTime] = local_optim(i,k, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni, rho)
     persistent localOptimizer
     if k==2
         localOptimizer{i} = init_optimizer(x0, i,Q_Ni, Ri, N, param,rho);
     end
                                 
-    solutionSet = localOptimizer{i}(z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni, z_Ni.c_Ni, ...
+    [solutionSet, ~, ~, ~, ~, optimTime] = localOptimizer{i}(z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni, z_Ni.c_Ni, ...
                      y_Ni.x_Ni, y_Ni.x_eNi, y_Ni.alpha_Ni, y_Ni.c_Ni);
-
     w_Ni.x_Ni = solutionSet{4};
     w_Ni.x_eNi = solutionSet{5};
     w_Ni.alpha_Ni = solutionSet{6};
@@ -93,6 +98,7 @@ function [w_Ni, vi] = local_optim(i,k, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni, rho)
     vi.ui = solutionSet{1};
     vi.uei = solutionSet{2};
     vi.di = solutionSet{3};    
+    elapsedTime= optimTime.solvertime;
 end
 
 
@@ -168,22 +174,25 @@ function localOptimizer = init_optimizer(x0, i, Q_Ni, Ri, N, param, rho)
     %% Terminal Set constraints
     [constraints_i, alpha_Ni, c_Ni] = terminalConstraints(constraints_i, param,i,...
          ci, di,  alpha_i, lambda_i, bi);
-    
+    % Add cost if we deviate from equilibrium state and if equilibrium state
+    % deviates from the reference
      objective_i = objective_i + ... 
                     (Xi(:,end)-Xei)'*param.Pi{i}*(Xi(:,end)-Xei)+...
                     (Xei - param.Xref{i})'*Si*(Xei - param.Xref{i});
-     
+    % Terminal set condition (Reconfigurable Terminal Ingredients) 
     constraints_i = [constraints_i, (Xi(:,end)-ci(:,i))'*param.Pi{i}*(Xi(:,end)-ci(:,i))...
                                    <= alpha_i(i)^2];
+    % Augmented Lagrangian
     objective_i = objective_i + y_Ni.alpha_Ni'*(diag(alpha_Ni) - z_Ni.alpha_Ni) +...
                    y_Ni.c_Ni'*(c_Ni - z_Ni.c_Ni)+ rho/2*...
                   (diag(alpha_Ni) - z_Ni.alpha_Ni)'*(diag(alpha_Ni) - z_Ni.alpha_Ni)...
                   +rho/2 *(c_Ni - z_Ni.c_Ni)'*(c_Ni - z_Ni.c_Ni);
     ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
-   
+    % Parameters to give to solver (updated global copy and lagrangians)
     parameters_in = {z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni, z_Ni.c_Ni, ...
                      y_Ni.x_Ni, y_Ni.x_eNi,y_Ni.alpha_Ni, y_Ni.c_Ni};
     solutions_out = {Ui, Uei, di, X_Ni, X_eNi, diag(alpha_Ni), c_Ni};
+    % Create optimizer object
     localOptimizer = optimizer(constraints_i,objective_i,ops,parameters_in,solutions_out);
    
 end
