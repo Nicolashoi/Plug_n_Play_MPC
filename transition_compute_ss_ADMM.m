@@ -33,19 +33,31 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
             [w_Ni{i,k}, vi{i,k}, elapsedTime] = local_optim(i,k, x0, N, paramBefore, paramAfter,...
                                  z_Ni{i,l}, y_Ni{i,l}, rho, target);
             Tk = Tk + elapsedTime; 
-            % Obtain the sorted list of neighbors of system i
+            % Obtain the sorted list of neighbors of system i: this list will be
+            % used to update the local copies of each decision variable. The
+            % intersection of the DGU neighbors connected before and after PnP
+            % is taken, as we consider that an active DGU but disconnected from
+            % the rest of the network can not estimate another state (as it is
+            % not yet a neighbor/ or no longer a neighbor)
+            
             neighbors_i = sort([i;intersect(neighbors(paramBefore.NetGraph, i), ...
                                 neighbors(paramAfter.NetGraph, i))]);
                            
             for j = neighbors_i'% Update local copy of system i
-                % estimation of neighbors j by system i
-                if any(paramAfter.activeDGU(:) == j) && any(paramAfter.activeDGU(:) == i)
+                % Format wi(j,k,i) is estimation of system j by system i at
+                % iteration k
+                if any(paramAfter.activeDGU(:) == i) 
+                    % Terminal ingredients for Horizon N->2N only for DGU active
+                    % after PnP
                     wi{j,k,i}.xi = horzcat(paramBefore.Wij{i}{j}*w_Ni{i,k}.x_Ni,...
                                        paramAfter.Wij{i}{j}*w_Ni{i,k}.x_Ni_mod);
                     extract_alpha_i = paramAfter.Wij{i}{j}*w_Ni{i,k}.alpha_Ni;
                     wi{j,k,i}.alpha_i = extract_alpha_i(1); %array was alpha*dim(ni)
                     wi{j,k,i}.ci = paramAfter.Wij{i}{j}*w_Ni{i,k}.c_Ni;
                 else
+                    % if DGU is not active after PnP (i.e. from horizon N -> 2N,
+                    % we don't need to compute the terminal ingredients, 
+                    % set them by zero (default)
                     wi{j,k,i}.xi = horzcat(paramBefore.Wij{i}{j}*w_Ni{i,k}.x_Ni,...
                                    zeros(paramBefore.ni,N));
                     wi{j,k,i}.alpha_i = 0;
@@ -55,25 +67,19 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
                 
             end
         end  
-        % Update global copy of each subsystem
+        %% Update global copy of each subsystem
         for i = unionDGU
-%             neighborsBeforePnP = sort([i;neighbors(paramBefore.NetGraph, i)]);
-%             neighborsAfterPnP = sort([i;neighbors(paramAfter.NetGraph, i)]);
-%             
-%             if length(neighborsBeforePnP) < length(neighborsAfterPnP)
-%                 zi{i,k} = update_global_copy(wi(i,k,neighborsBeforePnP));
-%             else
-%                 zi{i,k} = update_global_copy(wi(i,k,neighborsAfterPnP));
-%             end
-% % %             neighbors_i = sort([i;union(neighbors(paramBefore.NetGraph, i), ...
-% % %                                 neighbors(paramBefore.NetGraph, i))]);
-            %neighbors_i = sort([i;neighbors(paramAfter.NetGraph, i)]);
-%             %each subsystem i averages it's state over the set of neighbors
+            % Again do the average estimate over the smallest subset (either
+            % before PnP in which case a DGU is to be added (not yet connected),
+            % or after PnP in which case a DGU is to be removed (disconnected).
+            % As the average over Horizon 2N cannot be taken for disconnected
+            % neighbors, the intersection (connected neighbors along the whole
+            % procedure is taken
             neighbors_i = sort([i;intersect(neighbors(paramBefore.NetGraph, i), ...
                                 neighbors(paramAfter.NetGraph, i))]);
             zi{i,k} = update_global_copy(wi(i,k,neighbors_i));
         end
-        % Share the global copy with all the neighbors (update the Ni states)
+        %% Share the global copy with all the neighbors (update the Ni states)
         for i=paramBefore.activeDGU
             neighbors_i = sort([i;neighbors(paramBefore.NetGraph, i)]);
             xi_cellBefore = cellfun(@(x) x.xi(:,1:N), zi(neighbors_i,k), 'Un', false);
@@ -98,7 +104,7 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
             y_Ni{i,k} = add_struct(y_Ni{i,l}, ...
                             structfun(@(x) rho.*x, y_Ni_inter, 'Un', false)) ; 
         end
-        % Terminal condition which is centralized (good for having an estimate 
+        %% Terminal condition which is centralized (good for having an estimate 
         % of how much time iteration are needed
         r_norm{k} = 0;
         s_norm{k} = 0;
@@ -116,6 +122,7 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
         l = l+1;
        
     end
+    %% Set variables
     xs = zeros(paramBefore.ni, paramBefore.nb_subsystems);
     us = zeros(paramBefore.nu, paramBefore.nb_subsystems);
     alpha = zeros(paramBefore.nb_subsystems,1);
