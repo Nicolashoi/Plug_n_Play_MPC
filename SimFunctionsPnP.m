@@ -109,11 +109,11 @@ classdef SimFunctionsPnP
             % compute steady state
             if ADMM
                 disp("Using ADMM !");
-                [xs, us, alpha] = transition_compute_ss_admm(horzcat(x0{:}), 10, paramBefore,...
+                [xs, us, alpha] = transition_compute_ss_admm(horzcat(x0{:}), N, paramBefore,...
                                     paramAfter, target);
             elseif ~ADMM
                 disp("Not using ADMM !");
-                [xs, us, alpha] = transition_compute_ss(horzcat(x0{:}), 10, paramBefore,...
+                [xs, us, alpha] = transition_compute_ss(horzcat(x0{:}), N, paramBefore,...
                                     paramAfter, target);
             else
                 disp("Error: Choose ADMM to be true or false");
@@ -174,7 +174,7 @@ classdef SimFunctionsPnP
             X(:) = {horzcat(x0{:})}; 
             controllerType = functions(controller);
             fprintf("--INFO: Using controller %s -- \n ", controllerType.function);
-            clear controllerType.file
+            clear (controllerType.file)
              
             N = 5; % Horizon
        

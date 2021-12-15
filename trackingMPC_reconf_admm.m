@@ -146,7 +146,7 @@ function localOptimizer = init_optimizer(x0, i, Q_Ni, Ri, N, param, rho)
     
     % Initial condition
     constraints_i = [constraints_i, Xi(:,1) == x0(:,i)];
-    
+    constraints_i = [constraints_i, X_Ni(:,1) == reshape(x0(:,neighbors_i), [],1)];
     %% Equilibrium constraints
     constraints_i = [constraints_i, Xei == param.A_Ni{i}*X_eNi + ...
                                             param.Bi{i}*Uei];

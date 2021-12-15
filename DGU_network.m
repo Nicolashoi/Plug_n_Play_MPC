@@ -180,7 +180,7 @@ classdef DGU_network
 
             end
           end 
-          for i= obj.activeDGU % neighbors constraints only for active DGUs
+          for i= 1:obj.nb_subsystems % neighbors constraints only for active DGUs
             out_neighbors = sort([i;neighbors(obj.NetGraph, i)]); % neighbor states of
             obj.Gx_Ni{i} = blkdiag(obj.Gx_i{out_neighbors});
             obj.fx_Ni{i} = vertcat(obj.fx_i{out_neighbors});

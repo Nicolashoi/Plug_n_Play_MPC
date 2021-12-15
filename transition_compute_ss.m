@@ -8,7 +8,7 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
     U = sdpvar(repmat(nu,1,2*N-1), repmat(M,1,2*N-1),'full');
     % State cell array of size N (timestep), each cell is an array of size nx*M
     X = sdpvar(repmat(nx,1,2*N),repmat(M,1,2*N),'full'); % contains state of each subsystem i
-    X0 = sdpvar(nx,M,'full'); % state as rows and system number as column
+    %X0 = sdpvar(nx,M,'full'); % state as rows and system number as column
     %X0 = sdpvar(repmat(nx,1,M),ones(1,M), 'full');
     X_Ni = cell(M,2*N-1); % cell array for neighbor states of i
     % Equilibrium state and input
@@ -31,7 +31,7 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
     %% Constraints: Outer loop over subsystems, inner loop over Horizon
     
     for i= union(paramBefore.activeDGU,paramAfter.activeDGU) % loop over active + to be plugged in/out
-        constraints = [constraints, X{1}(:,i) == X0(:,i)];
+        constraints = [constraints, X{1}(:,i) == x0(:,i)];
         ni = size(paramBefore.A_Ni{i},1); 
         n_Ni = size(paramBefore.A_Ni{i},2); % get size of set of Neighbors
         % obtain sorted list of neighbors of system i
@@ -43,6 +43,7 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
         % constraint for X_sNi =  concat of neighbor x_si
         constraints = [constraints, X_sNi{i} == ...
                                     reshape(Xs(:,neighbors_i),[],1)];
+        constraints = [constraints, Us(:,i) == paramAfter.Ki{i}*Xs(:,i)+di(:,i)];
         constraints = [constraints, paramBefore.Gx_i{i}*Xs(:,i) <= paramBefore.fx_i{i}];
         %% Planning Horizon Loop
         for n = 1:N-1 
@@ -61,14 +62,17 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
                                       <= paramBefore.fx_i{i}];
             constraints = [constraints, paramBefore.Gu_i{i} * U{n}(:,i)...
                                        <= paramBefore.fu_i{i}];
-            % Objective  
-            if target == "reference"
-                objective = objective + norm(Xs(:,i)-paramAfter.Xref{i},2);
-            elseif target == "current state"
-                objective = objective + norm(Xs(:,i)-X0(:,i),2);
-            else
-                disp("objective not well defined, choose reference or current state");
-            end
+            
+        end
+        % Objective
+        if target == "reference"
+            objective = objective + 100*(Xs(:,i)-paramAfter.Xref{i})'*...
+                                    (Xs(:,i)-paramAfter.Xref{i});
+        elseif target == "current state"
+            objective = objective + 100*(Xs(:,i)-x0(:,i))'*...
+                                    (Xs(:,i)-x0(:,i));
+        else
+            disp("objective not well defined, choose reference or current state");
         end
         % Terminal steady state condition
         constraints = [constraints, X{N}(:,i) == Xs(:,i)];    
@@ -164,11 +168,11 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
     
     %% Create optimizer object 
     ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
-    parameters_in = {X0};
+    parameters_in = [];
     solutions_out = {Xs, Us, alpha}; 
     optimizerObj = optimizer(constraints,objective,ops,parameters_in,solutions_out);
     %optim_results = optimizerObj(x0);
-    [optim_results, ~, ~, ~, ~, feasibility] =  optimizerObj(x0);
+    [optim_results, ~, ~, ~, ~, feasibility] =  optimizerObj();
     if ~(feasibility.problem)
         disp("Feasible steady-state found");
     else

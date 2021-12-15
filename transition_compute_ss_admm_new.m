@@ -1,5 +1,5 @@
 
-function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
+function [xs, us, alpha] = transition_compute_ss_admm_new(x0, N, paramBefore, ...
                                                            paramAfter, target)
     rho = 0.25;
     TMAX = 100;
@@ -17,7 +17,7 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
         y_Ni{i,1}.x_eNi = zeros(length(neighbors_i)*paramBefore.ni,1);
     end
     % DGUs active after PnP
-    for i= paramAfter.activeDGU
+    for i= unionDGU
         neighbors_i = sort([i;neighbors(paramAfter.NetGraph, i)]);
         z_Ni{i,1}.x_Ni_mod = zeros(length(neighbors_i)*paramAfter.ni,N);
         z_Ni{i,1}.alpha_Ni = zeros(length(neighbors_i)*paramAfter.ni,1);
@@ -34,8 +34,8 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
                                  z_Ni{i,l}, y_Ni{i,l}, rho, target);
             Tk = Tk + elapsedTime; 
             % Obtain the sorted list of neighbors of system i
-            neighbors_i = sort([i;intersect(neighbors(paramBefore.NetGraph, i), ...
-                                neighbors(paramAfter.NetGraph, i))]);
+            neighbors_i = sort([i;union(neighbors(paramBefore.NetGraph, i), ...
+                                neighbors(paramBefore.NetGraph, i))]);
                            
             for j = neighbors_i'% Update local copy of system i
                 % estimation of neighbors j by system i
@@ -47,30 +47,21 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
                     wi{j,k,i}.ci = paramAfter.Wij{i}{j}*w_Ni{i,k}.c_Ni;
                 else
                     wi{j,k,i}.xi = horzcat(paramBefore.Wij{i}{j}*w_Ni{i,k}.x_Ni,...
-                                   zeros(paramBefore.ni,N));
+                                   zeros(paramBefore.ni,size(w_Ni{i,k}.x_Ni_mod,1))*w_Ni{i,k}.x_Ni_mod);
                     wi{j,k,i}.alpha_i = 0;
                     wi{j,k,i}.ci = zeros(paramBefore.ni,1);
-                end     
+                end
+                                           
+                         
                 wi{j,k,i}.xei = paramBefore.Wij{i}{j}*w_Ni{i,k}.x_eNi;
                 
             end
         end  
         % Update global copy of each subsystem
         for i = unionDGU
-%             neighborsBeforePnP = sort([i;neighbors(paramBefore.NetGraph, i)]);
-%             neighborsAfterPnP = sort([i;neighbors(paramAfter.NetGraph, i)]);
-%             
-%             if length(neighborsBeforePnP) < length(neighborsAfterPnP)
-%                 zi{i,k} = update_global_copy(wi(i,k,neighborsBeforePnP));
-%             else
-%                 zi{i,k} = update_global_copy(wi(i,k,neighborsAfterPnP));
-%             end
-% % %             neighbors_i = sort([i;union(neighbors(paramBefore.NetGraph, i), ...
-% % %                                 neighbors(paramBefore.NetGraph, i))]);
-            %neighbors_i = sort([i;neighbors(paramAfter.NetGraph, i)]);
-%             %each subsystem i averages it's state over the set of neighbors
-            neighbors_i = sort([i;intersect(neighbors(paramBefore.NetGraph, i), ...
-                                neighbors(paramAfter.NetGraph, i))]);
+            neighbors_i = sort([i;union(neighbors(paramBefore.NetGraph, i), ...
+                                neighbors(paramBefore.NetGraph, i))]);
+            %each subsystem i averages it's state over the set of neighbors
             zi{i,k} = update_global_copy(wi(i,k,neighbors_i));
         end
         % Share the global copy with all the neighbors (update the Ni states)
@@ -82,7 +73,7 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
             z_Ni{i,k}.x_eNi = vertcat(xei_cell{:});
         end
         % variables at Horizon > N (for the new Network topology)
-        for i=paramAfter.activeDGU
+        for i=unionDGU
             neighbors_i = sort([i;neighbors(paramAfter.NetGraph, i)]);
             xi_cellAfter = cellfun(@(x) x.xi(:,N+1:end), zi(neighbors_i,k), 'Un', false);
             z_Ni{i,k}.x_Ni_mod = vertcat(xi_cellAfter{:});
@@ -91,8 +82,6 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
             z_Ni{i,k}.alpha_Ni = vertcat(alpha_i_cell{:});
             ci_cell = cellfun(@(x) x.ci, zi(neighbors_i,k), 'Un', false);
             z_Ni{i,k}.c_Ni = vertcat(ci_cell{:});
-        end
-        for i=unionDGU
             % Update Lagrange Multipliers
             y_Ni_inter = diff_struct(w_Ni{i,k}, z_Ni{i,k});
             y_Ni{i,k} = add_struct(y_Ni{i,l}, ...
@@ -108,7 +97,7 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
             s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
             s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
         end
-        if r_norm{k} < 0.1 && s_norm{k} < 0.1
+        if r_norm{k} < 0.01 && s_norm{k} < 0.01
             break;
         end
         fprintf("Iteration %d,  Time elapsed for each iteration %d \n", l, Tk);
@@ -133,30 +122,22 @@ function [w_Ni, vi, elapsedTime] = local_optim(i,k, x0, N, paramBefore, paramAft
         localOptimizer{i} = init_optimizer(x0,i, N,paramBefore, paramAfter,rho,...
                                             target);
     end
-    
-    if any(paramAfter.activeDGU(:) == i)
-        [solutionSet, ~, ~, ~, ~, optimTime] = localOptimizer{i}(z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni, z_Ni.c_Ni, ...
+                                
+    [solutionSet, ~, ~, ~, ~, optimTime] = localOptimizer{i}(z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni, z_Ni.c_Ni, ...
                      y_Ni.x_Ni, y_Ni.x_eNi, y_Ni.alpha_Ni, y_Ni.c_Ni);
-                 
-    w_Ni.x_Ni_mod = solutionSet{6};
-    w_Ni.alpha_Ni = solutionSet{7};
-    w_Ni.c_Ni = solutionSet{8};
-    
-    else
-        [solutionSet, ~, ~, ~, ~, optimTime] = localOptimizer{i}(z_Ni.x_Ni, z_Ni.x_eNi, ...
-                     y_Ni.x_Ni, y_Ni.x_eNi);
-    end
-                 
     if optimTime.problem
         error("Steady-state not found, Optimization problem: P&P rejected");
     end
+    w_Ni.x_Ni = solutionSet{4};
+    w_Ni.x_Ni_mod = solutionSet{5};
+    w_Ni.x_eNi = solutionSet{6};
+    w_Ni.alpha_Ni = solutionSet{7};
+    w_Ni.c_Ni = solutionSet{8};
     vi.ui = solutionSet{1};
     vi.uei = solutionSet{2};
     vi.di = solutionSet{3};
-    w_Ni.x_Ni = solutionSet{4};
-    w_Ni.x_eNi = solutionSet{5};
-     
     elapsedTime= optimTime.solvertime;
+
 end
 
 function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter, rho, target)
@@ -264,19 +245,18 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter, rho, 
                    y_Ni.c_Ni'*(c_Ni - z_Ni.c_Ni)+ rho/2*...
                   (diag(alpha_Ni) - z_Ni.alpha_Ni)'*(diag(alpha_Ni) - z_Ni.alpha_Ni)...
                   +rho/2 *(c_Ni - z_Ni.c_Ni)'*(c_Ni - z_Ni.c_Ni);
-    
-    parameters_in = {z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni, z_Ni.c_Ni, ...
-                 y_Ni.x_Ni, y_Ni.x_eNi,y_Ni.alpha_Ni, y_Ni.c_Ni};
-             
-    solutions_out = {Ui, Uei, di, X_Ni, X_eNi, X_Ni_mod, diag(alpha_Ni), c_Ni};
     else
-        parameters_in = {z_Ni.x_Ni, z_Ni.x_eNi, y_Ni.x_Ni, y_Ni.x_eNi};
-        solutions_out = {Ui, Uei, di, X_Ni, X_eNi};
+        alpha_Ni = sdpvar(length(n_Ni_after*paramAfter.ni));
+        constraints_i = [constraints_i, alpha_Ni == zeros(length(n_Ni_after*paramAfter.ni))];
+        constraints_i = [constraints_i, X_Ni_mod == zeros(size(X_Ni_mod))];
+        c_Ni = sdpvar(length(n_Ni_after*paramAfter.ni),1, 'full');
+        constraints_i = [constraints_i, c_Ni == zeros(length(n_Ni_after*paramAfter.ni),1)];
     end
     ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
 
-    
-    
+    parameters_in = {z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni, z_Ni.c_Ni, ...
+                 y_Ni.x_Ni, y_Ni.x_eNi,y_Ni.alpha_Ni, y_Ni.c_Ni};
+    solutions_out = {Ui, Uei, di, X_Ni, X_Ni_mod, X_eNi, diag(alpha_Ni), c_Ni};
     localOptimizer = optimizer(constraints_i,objective_i,ops,parameters_in,solutions_out);
 end
 
