@@ -124,11 +124,11 @@ classdef SimFunctionsPnP
             X{1} = horzcat(x0{:});
             clear regulation2ss
             n = 1;
-            while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 1e-3) || ...
-                  any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 1e-3)    
+            while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 1e-1) || ...
+                  any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 5e-2)    
                     % control input is of size nu x M 
                     if ADMM
-                        U{n} = regulation2ss(X{n}, N, paramBefore, xs, us, Qi, Ri); % get first control input
+                        U{n} = regulation2ss_admm(X{n}, N, paramBefore, xs, us, Qi, Ri); % get first control input
                     else
                         U{n} = regulation2ss(X{n}, N, paramBefore, xs, us, Qi, Ri); % get first control input
                     end
@@ -143,6 +143,7 @@ classdef SimFunctionsPnP
                         x_Ni = reshape(X{n}(:,neighbors_i),[],1); 
                         X{n+1}(:, i) = paramBefore.A_Ni{i}*x_Ni + paramBefore.Bi{i}*U{n}(:,i);
                     end
+                    fprintf("Regulation to steady-state: iteration %d \n", n);
                     n = n+1;
             end  
             lenSim = n;

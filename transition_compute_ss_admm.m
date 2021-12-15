@@ -114,7 +114,7 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
             s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
             s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
         end
-        if r_norm{k} < 0.1 && s_norm{k} < 0.1
+        if r_norm{k} < 0.75 && s_norm{k} < 0.75
             break;
         end
         fprintf("Iteration %d,  Time elapsed for each iteration %d \n", l, Tk);
@@ -131,6 +131,7 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
         us(:,i) = vi{i,end}.uei;
         alpha(i) = wi{i,end,i}.alpha_i;
     end
+    disp("Feasible steady-state found");
 end
 
 function [w_Ni, vi, elapsedTime] = local_optim(i,k, x0, N, paramBefore, paramAfter,z_Ni, y_Ni,...
