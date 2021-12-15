@@ -47,7 +47,7 @@ function u0 = regulation2ss_admm(x0, N, param, xs, us, Qi, Ri)
             s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
             s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
         end
-        if r_norm{k} < 0.5 && s_norm{k} < 0.5
+        if r_norm{k} < 0.3 && s_norm{k} < 0.3
             break;
         end
         k = k+1;
@@ -92,11 +92,12 @@ function localOptimizer = init_optimizer(xs_i, us_i, i, N, Qi, Ri, param, rho)
     Ui = sdpvar(nu,N-1, 'full');
       
     %% CONSTRAINTS DYNAMICS AND OBJECTIVE
-    constraints_i = [constraints_i, Xi(:,1) == X0(:,i)];
-    % INCLUDE ??
-    %constraints_i = [constraints_i, X_Ni(:,1) == vertcat(x0{neighbors_i})];
     neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
     idx_Ni = logical(kron((neighbors_i==i), ones(ni,1)));
+    
+    constraints_i = [constraints_i, Xi(:,1) == X0(:,i)];
+    constraints_i = [constraints_i, X_Ni(:,1) == reshape(X0(:,neighbors_i), [],1)];
+    
  
     % Planning Horizon Loop
     for n = 1:N-1 
