@@ -115,7 +115,7 @@ classdef DGU_network
                 A = blkdiag(obj.Ac{:});
                 B = blkdiag(obj.Bc{:});
                 C = blkdiag(obj.Cc{:});% define the global output matrix needed for passivity
-                F = blkdiag(obj.Fi{:});
+                F = blkdiag(obj.Fc{:});
                 A = A + F*obj.L_tilde*C;
                 sys = ss(A,B,C,[]);
                 obj.global_sysd = c2d(sys, obj.Ts); % Exact discretization of the global system
