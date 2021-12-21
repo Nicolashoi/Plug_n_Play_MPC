@@ -15,13 +15,14 @@ function [Qi, Ri] = computeQi_Ri(param, i)
         Aij = param.A_Ni{j}*param.Wij{j}{i}'; % obtain Aij for system i from A_Ni
         %diagTerm = diagTerm + Aij'*param.Pi{j}*Aij; % add diagonal element of A^T*P*A
         A = [A; param.A_Ni{j}*param.W{j}]; % concatenate horizontally
-        if j==i
-            % if it is system i
-            BK = [BK;param.Bi{i}*param.Ki{i}*param.U{i}]; 
-        else
-            % For the neighbors where the row is not equal to system i we add zeros
-            BK = [BK; zeros(param.ni, param.nb_subsystems*param.ni)]; % padd zeros
-        end
+        BK = [BK;param.Bi{j}*param.Ki{j}*param.U{j}]; 
+%         if j==i
+%             % if it is system i
+%             BK = [BK;param.Bi{i}*param.Ki{i}*param.U{i}]; 
+%         else
+%             % For the neighbors where the row is not equal to system i we add zeros
+%             BK = [BK; zeros(param.ni, param.nb_subsystems*param.ni)]; % padd zeros
+%         end
 %         At = [At Aij']; 
 %         AtPBK = [AtPBK Aij'*param.Pi{i}*param.Bi{i}*param.Ki{i}];
     end

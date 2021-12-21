@@ -44,11 +44,11 @@ dguNet = PnP.setPassiveControllers(dguNet);
 % Use the tracking MPC with reconfigurable terminal ingredients  to converge to reference from the initial state
 simStart = 1;
 length_sim = 25;
-[X, U] = PnP.mpc_DGU_tracking(@trackingMPC_reconf, x0, length_sim, dguNet, Q_Ni, Ri);
-dguNet.plot_DGU_system(X,U, config, control_type, dguNet, simStart, 1:6); % plot results
-clear X U
-[X, U] = PnP.mpc_DGU_tracking(@trackingMPC_reconf_admm, x0, length_sim, dguNet, Q_Ni, Ri);
-dguNet.plot_DGU_system(X,U, config, control_type, dguNet, simStart, 1:6); % plot results
+% [X, U] = PnP.mpc_DGU_tracking(@trackingMPC_reconf, x0, length_sim, dguNet, Q_Ni, Ri);
+% dguNet.plot_DGU_system(X,U, config, control_type, dguNet, simStart, 1:6); % plot results
+% clear X U
+% [X, U] = PnP.mpc_DGU_tracking(@trackingMPC_reconf_admm, x0, length_sim, dguNet, Q_Ni, Ri);
+% dguNet.plot_DGU_system(X,U, config, control_type, dguNet, simStart, 1:6); % plot results
 
 %% B) Scenario 2: Connect DGU 6 to DGU 3
 % Set all DGUs to be active. DGU 6 is now active but is not connected yet to the network

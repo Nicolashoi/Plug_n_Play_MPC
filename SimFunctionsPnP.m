@@ -11,6 +11,8 @@ classdef SimFunctionsPnP
                 disp(obj.Ki{i});
                 sprintf("P%d", i)
                 disp(obj.Pi{i});
+                fprintf("minimum eigenvalue of dissipation rate %.2d \n", ...
+                        min(eig(Gamma_i)));
                
             end
             for i= obj.activeDGU
@@ -93,6 +95,8 @@ classdef SimFunctionsPnP
                 disp(obj.Ki{i});
                 sprintf("P%d", i)
                 disp(obj.Pi{i});
+                fprintf("minimum eigenvalue of dissipation rate %.2d \n", ...
+                        min(eig(Gamma_i)));
              end 
              for i= obj.activeDGU % recompute neighbors passive gains
                 out_neighbors = sort([i; neighbors(obj.NetGraph, i)]); 
