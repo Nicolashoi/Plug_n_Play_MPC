@@ -4,7 +4,7 @@ function [Qi, Ri, decVariables] = computeQi_Ri_new(param, i)
     Qi = sdpvar(param.ni, param.ni); % symmetric positive definite
     neighbors_i = sort([i; neighbors(param.NetGraph, i)]); 
     Pblk = blkdiag(param.Pi{neighbors_i});
-    %Kblk = blkdiag(param.Ki{neighbors_i});
+    Kblk = blkdiag(param.Ki{neighbors_i});
     BiLift = param.Wij{i}{i}'*param.Bi{i};
     zDec = sdpvar(param.nb_subsystems,1, 'full');
     Plift_cell = cell(length(neighbors_i),1);
@@ -30,20 +30,18 @@ function [Qi, Ri, decVariables] = computeQi_Ri_new(param, i)
     end
     A = cell2mat(Aij);
     %Acl = (A+Bblk*Kblk);
-    Acl = (A+BiLift*param.K_Ni{i});
+    BK = blkdiag(param.Bi{neighbors_i})*Kblk;
+    %Acl = (A+BiLift*param.K_Ni{i});
+    Acl = A + BK;
     PiLift = blkdiag(Plift_cell{:});
     idx_i_mat = diag(neighbors_i == i);
     QiLift = kron(idx_i_mat, Qi);
-    LMI_i = PiLift - QiLift - param.K_Ni{i}'*Ri*param.K_Ni{i} - ...
-            Acl'*Pblk*Acl;
-%     shiftDiag = 0;
-%     for k=1:size(LMI_i,1)
-%         constraints = [constraints, LMI_i(k, i*param.ni-1+shiftDiag) >= ...
-%                       sum(abs(LMI_i(k,:)))-abs(LMI_i(k, i*param.ni-1+shiftDiag))];
-%         shiftDiag = shiftDiag+1;
-%     end
-    constraints = [constraints, Qi >= 1e-5*eye(param.ni), ...
-                                Ri >= 1e-5 * eye(param.nu)];
+    LMI_i = PiLift - QiLift - Acl'*Pblk*Acl - Kblk'*Ri*Kblk; %...
+    %param.K_Ni{i}'*Ri*param.K_Ni{i}; 
+            
+
+    constraints = [constraints, Qi >= 1e-3*eye(param.ni), ...
+                                Ri >= 1e-2 * eye(param.nu)];
     constraints = [constraints, LMI_i>=0];
 %    
     objective = sum(zDec(neighbors_i).^2);

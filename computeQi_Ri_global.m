@@ -17,12 +17,12 @@ function [Q, R] = computeQi_Ri_global(param)
     Pblk = blkdiag(param.Pi{:});
     Kblk = blkdiag(param.Ki{:});
     LMI = Pblk - (A+B*Kblk)'*Pblk*(A+B*Kblk) - Q - Kblk'*R*Kblk;
-    %constraints = [constraints, LMI >= 0, Q>= 1e-5*eye(12), R>= 1e-5*eye(6)];
-    constraints = [constraints, Q>= 1e-5*eye(12), R>= 1e-5*eye(6)];
-    for k=1:size(LMI,1)
-        constraints = [constraints, LMI(k,k) >= ...
-                      sum(abs(LMI(k,:)))-abs(LMI(k, k))];    
-    end
+    constraints = [constraints, LMI >= 0, Q>= 1e-5*eye(12), R>= 1e-5*eye(6)];
+%     constraints = [constraints, Q>= 1e-5*eye(12), R>= 1e-5*eye(6)];
+%     for k=1:size(LMI,1)
+%         constraints = [constraints, LMI(k,k) >= ...
+%                       sum(abs(LMI(k,:)))-abs(LMI(k, k))];    
+%     end
     ops = sdpsettings('solver', 'MOSEK', 'verbose',0); %options
     diagnostics = optimize(constraints, [], ops);
     if diagnostics.problem == 1
