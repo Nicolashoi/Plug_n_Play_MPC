@@ -6,20 +6,20 @@
 
 function [Pi, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, param, passivity)
     % system choice
-    M = param.nb_subsystems;
+    M = length(param.activeDGU);%param.nb_subsystems;
     if ~passivity
         [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, param);
     elseif passivity
         Ki = cell(1,M); Pi = cell(1,M); Gamma_i = cell(1,M);
         K_Ni = cell(1,M); P_Ni = cell(1,M); Gamma_Ni = cell(1,M);
-        for i=1:M
+        for i=param.activeDGU
             [Ki{i}, ~, Pi{i}, Gamma_i{i}] = controller_passivity(param.Ai{i},...
                                             param.Bi{i}, param.Ci{i},param.Fi{i},...
                                             param.L_tilde, param.global_sysd.C, i);
             sprintf("passivity gain of system %d is", i)
             disp(Ki{i});
         end
-        for i=1:M
+        for i=param.activeDGU
             out_neighbors = sort([i; neighbors(param.NetGraph, i)]); 
             P_Ni{i} = blkdiag(Pi{out_neighbors}); 
             Gamma_Ni{i} = blkdiag(Gamma_i{out_neighbors});
@@ -32,7 +32,7 @@ function [Pi, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, param, pa
     %% LP (equation 32 of the paper)
     constraints = []; % initialize constraints
     alpha = sdpvar(1,1,'full');
-    for i = M:-1:1
+    for i = param.activeDGU
 
         for j= 1:size(param.Gx_i{i},1)
         constraints = [constraints,(norm(Pi{i}^(1/2)*param.Gx_i{i}(j,:)')^2)*alpha...
@@ -49,6 +49,6 @@ function [Pi, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, param, pa
     if diagnostics.problem == 1
         error('Solver thinks algorithm 2 is infeasible')
     end
-    alpha_i = value(alpha)/M;
+    alpha_i = value(alpha)/length(param.activeDGU);
 
 end

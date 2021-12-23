@@ -38,18 +38,30 @@ dguNet = dguNet.initDynamics(); % initialize dynamics
 delta_config = false; % not in delta configuration
 dguNet = dguNet.compute_Ref_Constraints(delta_config);
 control_type = "MPC online";
-[x0, Q_Ni, Ri] = utils.tuningParam(dguNet, delta_config)
 % Use passivity to find the local passive feedback gains  and  s.t. 
 dguNet = PnP.setPassiveControllers(dguNet);
+% Compute Qi and Ri matrices in a distributed fashion to ensure global aymptotic
+% stability
+[x0, Q_Ni, Ri] = utils.tuningParam(dguNet, delta_config);
 % Use the tracking MPC with reconfigurable terminal ingredients  to converge to reference from the initial state
 simStart = 1;
 length_sim = 25;
-% [X, U] = PnP.mpc_DGU_tracking(@trackingMPC_reconf, x0, length_sim, dguNet, Q_Ni, Ri);
-% dguNet.plot_DGU_system(X,U, config, control_type, dguNet, simStart, 1:6); % plot results
+[X, U] = PnP.mpc_DGU_tracking(@trackingMPC_reconf, x0, length_sim, dguNet, Q_Ni, Ri);
+dguNet.plot_DGU_system(X,U, config, control_type, dguNet, simStart, 1:6); % plot results
 % clear X U
 % [X, U] = PnP.mpc_DGU_tracking(@trackingMPC_reconf_admm, x0, length_sim, dguNet, Q_Ni, Ri);
 % dguNet.plot_DGU_system(X,U, config, control_type, dguNet, simStart, 1:6); % plot results
 
+%% Test transition phase without reconfigurable terminal ingredients
+delta_config = true;
+[x0, Q_Ni, Ri] = utils.tuningParam(dguNet, delta_config)
+dguNet_delta = dguNet;
+dguNet_delta = dguNet_delta.compute_Ref_Constraints(delta_config);
+use_passivity = false;
+[P, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, dguNet, ...
+                                                  use_passivity);
+fprintf("Initial terminal set constrait alpha = %d \n", alpha_i)
+alpha = alpha_i*ones(nb_subsystems,1);
 %% B) Scenario 2: Connect DGU 6 to DGU 3
 % Set all DGUs to be active. DGU 6 is now active but is not connected yet to the network
 simStart2 = simStart + length_sim;

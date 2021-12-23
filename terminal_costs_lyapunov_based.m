@@ -2,7 +2,7 @@ function [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, pa
     objective = 0;
  
     ni = param.ni;
-    M = param.nb_subsystems;
+    M = param.nb_subsystems;%length(param.activeDGU);
     global Ei E H_Ni Y_Ni E_Ni Ebar
     %% decision variables
     Ei = sdpvar(repmat(ni,1,M),repmat(ni,1,M)); % cell array of dimension M, 
@@ -22,7 +22,7 @@ function [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, pa
         error('MOSEK solver thinks algorithm 1 is infeasible')
     end
     %% Map
-    for i = M:-1:1
+    for i = param.activeDGU
         Pi{i} = inv(value(Ei{i}));
         P_Ni{i} = inv(value(E_Ni{i}));
         K_Ni{i} = value(Y_Ni{i})*P_Ni{i};
@@ -38,7 +38,7 @@ function constraints = define_constraints(Q_Ni, Ri, param, ni, M)
     pi = size(param.Bi{1},2);
     constraints = [];
     %% Constraint definition
-    for i = 1:M
+    for i = param.activeDGU
         m_Ni = size(param.W{i},1); % size of the set Ni (i and it's neighbors)
         % decision variables dependent on it's subsystem neighbors set size
         Ebar{i} = param.W{i}*param.U{i}' * Ei{i}* param.U{i}* param.W{i}';

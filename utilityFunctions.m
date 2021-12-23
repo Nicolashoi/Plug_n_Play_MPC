@@ -2,25 +2,28 @@
 classdef utilityFunctions
     methods (Static)
           % Compute initial state and matrices 
-          function [x0, Q_Ni, Ri, Qi] = tuningParam(dguNet, delta_config)
-            Q_Ni = cell(1,dguNet.nb_subsystems); 
-            Qi = cell(1, dguNet.nb_subsystems);
-            Ri = cell(1,dguNet.nb_subsystems);
-            x0 = cell(1,dguNet.nb_subsystems);
-            for i = 1:dguNet.nb_subsystems
+          function [x0, Q_Ni, Ri, Qi] = tuningParam(param, delta_config)
+            Q_Ni = cell(1, length(param.activeDGU)); 
+            Qi = cell(1, length(param.activeDGU));
+            Ri = cell(1,length(param.activeDGU));
+            x0 = cell(1,param.nb_subsystems);
+            for i = 1:param.nb_subsystems
                 if delta_config
                     x0{i} = [50;5]; % initial condition in normal coordinates
                     % delta formulation carried in the simulation functions
                     % directly
                 elseif ~delta_config
-                    x0{i} = [50;5-dguNet.Il(i)]; % second state is Ii - Il
+                    x0{i} = [50;5-param.Il(i)]; % second state is Ii - Il
                 else
                     error("config delta must be true or false");
                 end
-                m_Ni = size(dguNet.W{i},1);
-                Q_Ni{i} =1*eye(m_Ni);
-                Ri{i} = 1*eye(size(dguNet.Bi{i},2));
-                Qi{i} = eye(dguNet.ni);
+            end
+            for i=param.activeDGU
+                [Qi{i}, Ri{i}, decVariables{i}] = computeQi_Ri(param, i);
+            end
+            for i=param.activeDGU
+                neighbors_i = sort([i; neighbors(param.NetGraph, i)]);
+                Q_Ni{i} = blkdiag(Qi{neighbors_i});
             end
           end  
             
