@@ -61,7 +61,7 @@ function mpc_optimizer = init_optimizer(N, param, xs, us, Qi, Ri)
     %% Create optimizer object 
     ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
     parameters_in = {X0};
-    %solutions_out = {[U{:}], [X_eNi{1}], [X_eNi{2}], [X_eNi{3}], di, Ue}; % general form 
-    solutions_out = U{1}; % get U0 for each subsystem, size nu x M
+    solutions_out = U{1}; % general form 
+    %solutions_out = {U{1}, U{2}, U{3}, U{4}}; % get U0 for each subsystem, size nu x M
     mpc_optimizer = optimizer(constraints,objective,ops,parameters_in,solutions_out);
 end

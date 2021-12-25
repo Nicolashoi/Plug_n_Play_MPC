@@ -237,10 +237,10 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter, rho, 
     end
     
     if target == "reference"
-        objective_i = objective_i + 100*(Xei - paramAfter.Xref{i})'*...
-                                        (Xei - paramAfter.Xref{i});%1*norm(Xei-param.Xref{i},2);
+        objective_i = objective_i + (Xei - paramAfter.Xref{i})'*...
+                                        (Xei - paramAfter.Xref{i});
     elseif target == "current state"
-        objective_i = objective_i + 100*(Xei-x0(:,i))'*(Xei-x0(:,i));
+        objective_i = objective_i + (Xei-x0(:,i))'*(Xei-x0(:,i));
     else
         disp("objective not well defined, choose reference or current state");
     end

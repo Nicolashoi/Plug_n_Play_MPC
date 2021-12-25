@@ -56,14 +56,14 @@ dguNet.plot_DGU_system(X,U, config, control_type, dguNet, simStart, 1:6); % plot
 %% Test transition phase without reconfigurable terminal ingredients
 delta_config = true;
 use_passivity = false;
-[x0, Q_Ni, Ri] = utils.tuningParam(dguNet, delta_config, use_passivity);
+[x0_delta, Q_Ni, Ri] = utils.tuningParam(dguNet, delta_config, use_passivity);
 dguNet_delta = dguNet;
 dguNet_delta = dguNet_delta.compute_Ref_Constraints(delta_config);
 [dguNet_delta, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, dguNet_delta);
 fprintf("Initial terminal set constrait alpha = %d \n", alpha_i)
 alpha = alpha_i*ismember(1:6, dguNet_delta.activeDGU)';
 length_sim = 30;
-[Xdelt,Udelt] = PnP.mpc_sim_DGU_delta(@mpc_delta, x0, length_sim, dguNet_delta,...
+[Xdelt,Udelt] = PnP.mpc_sim_DGU_delta(@mpc_delta, x0_delta, length_sim, dguNet_delta,...
                          alpha, Q_Ni, Ri, Gamma_Ni);
 control_type = "MPC with offline computation of terminal ingredients";
 config = "DISTRIBUTED";
@@ -92,7 +92,7 @@ dguNet2_delta = dguNet2;
 delta_config = true;
 dguNet2_delta = dguNet2_delta.compute_Ref_Constraints(delta_config);
 use_passivity = false;
-[x0, Q_Ni, Ri, Qi] = utils.tuningParam(dguNet2_delta, delta_config, use_passivity);
+[x0_delta, Q_Ni, Ri, Qi] = utils.tuningParam(dguNet2_delta, delta_config, use_passivity);
 [dguNet2_delta, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, dguNet2_delta);
 fprintf("Initial terminal set constrait alpha = %d \n", alpha_i)
 alpha = alpha_i*ismember(1:6, dguNet2_delta.activeDGU)';
@@ -107,6 +107,7 @@ dguNet2 = PnP.redesignPhase(dguNet2, dguNet2.NetGraph,dguPos, "add");
 use_passivity = true;
 delta_config = false;
 [x0, Q_Ni, Ri, Qi] = utils.tuningParam(dguNet2, delta_config, use_passivity); 
+%%
 for i = activeDGU_scen1
     x0{i} = X{end}(:,i);   %
 end

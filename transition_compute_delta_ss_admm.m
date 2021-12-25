@@ -99,7 +99,7 @@ function [xs, us] = transition_compute_delta_ss_admm(x0, N, paramBefore, ...
             s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
             s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
         end
-        if r_norm{k} < 0.75 && s_norm{k} < 0.75
+        if r_norm{k} < 0.025 && s_norm{k} < 0.025
             break;
         end
         fprintf("Iteration %d,  Time elapsed for each iteration %d \n", l, ...
@@ -210,13 +210,12 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter,alpha_
     end
     
     if target == "reference"
-        objective_i = objective_i + 100*(Xei - 0)'*(Xei - 0);
+        objective_i = objective_i + (Xei - 0)'*(Xei - 0);
     elseif target == "current state"
-        objective_i = objective_i + 100*(Xei-x0(:,i))'*(Xei-x0(:,i));
+        objective_i = objective_i + (Xei-x0(:,i))'*(Xei-x0(:,i));
     else
         disp("objective not well defined, choose reference or current state");
     end
-    
     
     % Terminal steady state condition for 1st optimization part
     constraints_i = [constraints_i, Xi(:,N) == Xei]; 
