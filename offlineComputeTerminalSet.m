@@ -3,44 +3,24 @@
 %   Nicolas Hoischen
 % BRIEF:
 %  
-
-function [Pi, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, param, passivity)
+function [obj, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, obj)
     % system choice
-    M = length(param.activeDGU);%param.nb_subsystems;
-    if ~passivity
-        [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, param);
-    elseif passivity
-        Ki = cell(1,M); Pi = cell(1,M); Gamma_i = cell(1,M);
-        K_Ni = cell(1,M); P_Ni = cell(1,M); Gamma_Ni = cell(1,M);
-        for i=param.activeDGU
-            [Ki{i}, ~, Pi{i}, Gamma_i{i}] = controller_passivity(param.Ai{i},...
-                                            param.Bi{i}, param.Ci{i},param.Fi{i},...
-                                            param.L_tilde, param.global_sysd.C, i);
-            sprintf("passivity gain of system %d is", i)
-            disp(Ki{i});
-        end
-        for i=param.activeDGU
-            out_neighbors = sort([i; neighbors(param.NetGraph, i)]); 
-            P_Ni{i} = blkdiag(Pi{out_neighbors}); 
-            Gamma_Ni{i} = blkdiag(Gamma_i{out_neighbors});
-            K_block = blkdiag(Ki{out_neighbors}); %block matrix of all neighbors K
-            K_Ni{i} = K_block(out_neighbors==i,:); % extract only row corresponding to subsystem i
-        end
-    else
-       error("ERROR: chose if passivity is to be used or not"); 
-    end
+    M = length(obj.activeDGU);%param.nb_subsystems;
+    [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, obj);
+    % Set controllers 
+    obj.Pi = Pi;
+    obj.K_Ni = K_Ni;
     %% LP (equation 32 of the paper)
     constraints = []; % initialize constraints
     alpha = sdpvar(1,1,'full');
-    for i = param.activeDGU
-
-        for j= 1:size(param.Gx_i{i},1)
-        constraints = [constraints,(norm(Pi{i}^(1/2)*param.Gx_i{i}(j,:)')^2)*alpha...
-                       <= (param.fx_i{i}(j,:))^2];
+    for i = obj.activeDGU
+        for j= 1:size(obj.Gx_i{i},1)
+        constraints = [constraints,(norm(Pi{i}^(1/2)*obj.Gx_i{i}(j,:)')^2)*alpha...
+                       <= (obj.fx_i{i}(j,:))^2];
         end
-        for j=1:size(param.Gu_i{i},1)
-        constraints = [constraints,(norm(P_Ni{i}^(1/2)*K_Ni{i}'*param.Gu_i{i}(j,:)')^2)...
-                       *alpha <= (param.fu_i{i}(j,:))^2];
+        for j=1:size(obj.Gu_i{i},1)
+        constraints = [constraints,(norm(P_Ni{i}^(1/2)*K_Ni{i}'*obj.Gu_i{i}(j,:)')^2)...
+                       *alpha <= (obj.fu_i{i}(j,:))^2];
         end
     end
     objective = -alpha;
@@ -49,6 +29,73 @@ function [Pi, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, param, pa
     if diagnostics.problem == 1
         error('Solver thinks algorithm 2 is infeasible')
     end
-    alpha_i = value(alpha)/length(param.activeDGU);
+    alpha_i = value(alpha)/length(obj.activeDGU);
 
+end
+
+function [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, param)
+    objective = 0;
+ 
+    ni = param.ni;
+    M = param.nb_subsystems;%length(param.activeDGU);
+    global Ei E H_Ni Y_Ni E_Ni Ebar
+    %% decision variables
+    Ei = sdpvar(repmat(ni,1,M),repmat(ni,1,M)); % cell array of dimension M, 
+    % each cell array is ni x ni 
+    H_Ni = cell(1,M); Y_Ni = cell(1,M);
+    
+    %% dependent variables
+    E_Ni = cell(1,M);
+    Ebar = cell(1,M);
+    E = blkdiag(Ei{:}); 
+    constraints = define_constraints(Q_Ni, Ri, param, ni,M);
+    %% OPTIMIZER
+    ops = sdpsettings('solver', 'MOSEK', 'verbose',0);
+    %ops.mosek.MSK_IPAR_INFEAS_REPORT_AUTO = 'MSK_ON';
+    diagnostics = optimize(constraints, objective, ops);
+    if diagnostics.problem == 1
+        error('MOSEK solver thinks algorithm 1 is infeasible')
+    end
+    %% Map
+    for i = param.activeDGU
+        Pi{i} = inv(value(Ei{i}));
+        P_Ni{i} = inv(value(E_Ni{i}));
+        K_Ni{i} = value(Y_Ni{i})*P_Ni{i};
+        sprintf("Local feedback control laws K_N%d", i)
+        disp(K_Ni{i});
+        Gamma_Ni{i} = P_Ni{i}*value(H_Ni{i}) * P_Ni{i};
+    end
+end
+
+function constraints = define_constraints(Q_Ni, Ri, param, ni, M)
+    epsilon = 1e-5; % tolerance for positive definite constraint on E and E_Ni
+    global Ei E H_Ni Y_Ni E_Ni Ebar
+    pi = size(param.Bi{1},2);
+    constraints = [];
+    %% Constraint definition
+    for i = param.activeDGU
+        n_Ni = size(param.W{i},1); % size of the set Ni (i and it's neighbors)
+        % decision variables dependent on it's subsystem neighbors set size
+        Ebar{i} = param.W{i}*param.U{i}' * Ei{i}* param.U{i}* param.W{i}';
+        E_Ni{i} = param.W{i}*E*param.W{i}';
+        H_Ni{i} = sdpvar(n_Ni, n_Ni, 'full');
+        Y_Ni{i} = sdpvar(pi, n_Ni, 'full');
+        constraints = [constraints, Ei{i} >= epsilon*eye(size(Ei{i})),...
+                       E_Ni{i} >= epsilon*eye(size(E_Ni{i}))] ; %P.D
+        LMI{1} = [Ebar{i} + H_Ni{i}, E_Ni{i}*param.A_Ni{i}'+Y_Ni{i}'*param.Bi{i}',...
+                 E_Ni{i}*Q_Ni{i}^(1/2), Y_Ni{i}'*Ri{i}^(1/2)];
+        LMI{2} = [param.A_Ni{i}*E_Ni{i}+ param.Bi{i}*Y_Ni{i}, Ei{i}, zeros(ni,n_Ni),...
+                  zeros(ni,pi)];
+        LMI{3} = [(Q_Ni{i}^1/2)*E_Ni{i},zeros(n_Ni,ni), eye(n_Ni),...
+                    zeros(n_Ni, pi)];
+        LMI{4} = [(Ri{i}^1/2)*Y_Ni{i}, zeros(pi, ni), zeros(pi,n_Ni), eye(pi)];
+        LMI_1 = [LMI{1}; LMI{2}; LMI{3}; LMI{4}];
+        constraints = [constraints, LMI_1 >= 0];
+        if i == 1
+            LMI_2 = param.W{i}'*H_Ni{i}*param.W{i};
+        else
+            LMI_2 = LMI_2 + param.W{i}'*H_Ni{i}*param.W{i};
+        end
+    end
+    constraints = [constraints, LMI_2 <= 0];
 end

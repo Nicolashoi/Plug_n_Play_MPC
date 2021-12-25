@@ -5,22 +5,21 @@
 % Following Algorithm 2 of "Distributed Synthesis and Control of Constrained
 % Linear Systems"
 
-function u0 = mpc_online(x0, alpha, Q_Ni, Ri, Pi, N, param)
+function u0 = mpc_delta(x0, alpha, Q_Ni, Ri, N, param)
     persistent mpc_optimizer
     % initialize controller, if not done already
     if isempty(mpc_optimizer)
-        mpc_optimizer = init_optimizer(Q_Ni, Ri, Pi, N, param);
+        mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param);
     end
     [u0, ~, ~, ~, ~, feasibility]= mpc_optimizer(x0, alpha);
     if isequal(feasibility.problem,1)
         disp(feasibility.infostr);
     end
-    %u0 = mpc_optimizer(x0, alpha);
 end
  
-function mpc_optimizer = init_optimizer(Q_Ni, Ri, Pi, N, param)
-    %param = param_2_DGU;
+function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
     M = param.nb_subsystems;
+    %M = length(param.activeDGU);
     %% create variables for optimizer
     nx = size(param.Ai{1},1);
     nu = size(param.Bi{1},2); 
@@ -35,7 +34,8 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, Pi, N, param)
     constraints = [];
     
     %% Constraints: Outer loop over subsystems, inner loop over Horizon
-    for i=1:M % loop over all subsystems
+    for i= param.activeDGU%1:M % loop over all subsystems
+        constraints = [constraints, X{1}(:,i) == X0(:,i)];
         n_Ni = size(param.A_Ni{i},2); % get size of set of Neighbors
         % obtain sorted list of neighbors of system i
         out_neighbors = sort([i; neighbors(param.NetGraph, i)]);
@@ -61,12 +61,12 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, Pi, N, param)
                                     U{k}(:,i);
         end
         % Terminal cost
-        objective = objective + X{end}(:,i)'*Pi{i}*X{end}(:,i);
-        constraints = [constraints, X{end}(:,i)'*Pi{i}*X{end}(:,i)...
+        objective = objective + X{end}(:,i)'*param.Pi{i}*X{end}(:,i);
+        constraints = [constraints, X{end}(:,i)'*param.Pi{i}*X{end}(:,i)...
                                   <= alpha_var(i)];                             
     end    
     % parameter for initial condition
-    constraints = [constraints, X{1} == X0];
+%     constraints = [constraints, X{1} == X0];
     
     %% Create optimizer object 
     ops = sdpsettings('verbose',1); %options

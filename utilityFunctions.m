@@ -2,11 +2,12 @@
 classdef utilityFunctions
     methods (Static)
           % Compute initial state and matrices 
-          function [x0, Q_Ni, Ri, Qi] = tuningParam(param, delta_config)
+          function [x0, Q_Ni, Ri, Qi] = tuningParam(param, delta_config, passivity)
             Q_Ni = cell(1, length(param.activeDGU)); 
             Qi = cell(1, length(param.activeDGU));
             Ri = cell(1,length(param.activeDGU));
             x0 = cell(1,param.nb_subsystems);
+            %% Set Initial State
             for i = 1:param.nb_subsystems
                 if delta_config
                     x0{i} = [50;5]; % initial condition in normal coordinates
@@ -18,9 +19,30 @@ classdef utilityFunctions
                     error("config delta must be true or false");
                 end
             end
-            for i=param.activeDGU
-                [Qi{i}, Ri{i}, decVariables{i}] = computeQi_Ri(param, i);
+            %% Get Qi, Ri and Q_Ni
+            % If passivity is used, it is necessary to find Qi and Ri satisfying
+            % the global Riccati equation to ensure asymptotic stability
+            switch passivity
+                case true
+                    for i=param.activeDGU
+                        [Qi{i}, Ri{i}, decVariables{i}] = computeQi_Ri(param, i);
+                    end
+                    decVarSum = sum(cell2mat(decVariables),2);
+                    if all(decVarSum <= 1)
+                        fprintf(['Qi and Ri found to guarantee asympt. stability'...
+                                 'of the global system \n']);
+                    else
+                        fprintf(['no Qi and Ri found such that asympt. stability'...
+                                 'of the global system is guaranteed \n']);
+                    end
+                case false
+                        Qi(:) = {eye(param.ni)};
+                        Ri(:) = {eye(param.nu)};
+       
+                otherwise 
+                    disp('specify if passivity is used or not for redesign phase');
             end
+            
             for i=param.activeDGU
                 neighbors_i = sort([i; neighbors(param.NetGraph, i)]);
                 Q_Ni{i} = blkdiag(Qi{neighbors_i});

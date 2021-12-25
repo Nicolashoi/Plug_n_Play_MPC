@@ -170,7 +170,7 @@ classdef SimFunctionsPnP
         function [X,U] = mpc_DGU_tracking(controller, x0, length_sim,param, Q_Ni,...
                                           Ri)
                                       
-            X = cell(1,length_sim+1,1); % state at each timestep
+            X = cell(1,length_sim+1); % state at each timestep
             U = cell(1, length_sim); % control input at each timestep
             %X{1} = horzcat(x0{:}); % initial state columns are subsystem i
             % initialize all steps and states, otherwise yalmip returns NaN in
@@ -213,25 +213,31 @@ classdef SimFunctionsPnP
         
         %----- MPC DELTA FORMULATION WITH OFFLINE TERMINAL INGREDIENTS --------%
         function [X,U] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
-                                          alpha, Q_Ni, Ri, Pi, Gamma_Ni)
+                                          alpha, Q_Ni, Ri, Gamma_Ni)
                                       
-            M = param.nb_subsystems; % number of subsystems
             dX = cell(1,length_sim+1); % state at each timestep
             dU = cell(1,length_sim); % control input at each timestep
             X = cell(1,length_sim+1); % state at each timestep
             U = cell(1,length_sim); % control input at each timestep
-            X{1} = horzcat(x0{:}); % initial state columns are subsystem i    
-            dX{1} = X{1} - horzcat(param.Xref{:});
-            N = 10; % Horizon
-            clear mpc_online
+            % initialize all steps and states, otherwise yalmip returns NaN in
+            % non-activated DGU, resulting in NaN in the states which are given
+            % again to yalmip which does not support NaN as x0
+            X(:) = {horzcat(x0{:})}; 
+            dX(:) = {horzcat(x0{:})-horzcat(param.Xref{:})};
+
+            N = 5; % Horizon
+            controllerType = functions(controller);
+            fprintf("--INFO: Using controller %s -- \n ", controllerType.function);
+            clear (controllerType.file)
+            
             for n = 1:length_sim % loop over all subsystem
                 % control input is of size nu x M
-                dU{n} = controller(dX{n}, alpha, Q_Ni, Ri, Pi, N, param); % get first control input
+                dU{n} = controller(dX{n}, alpha, Q_Ni, Ri, N, param); % get first control input
                 U{n} = dU{n} + horzcat(param.Uref{:});
                 if isnan(dU{n})
                     error("Input to apply to controller is Nan at iteration %d",n);
                 end
-                for i=1:M
+                for i=param.activeDGU
                     out_neighbors = [i; neighbors(param.NetGraph, i)]; % get neighbors
                     out_neighbors = sort(out_neighbors); % sorted neighbor list
                     % create neighbor state vector comprising the state of subsystem i
@@ -243,7 +249,19 @@ classdef SimFunctionsPnP
                     % update variable constraining terminal set of each subsystem
                     alpha(i) = alpha(i) + x_Ni'*Gamma_Ni{i}*x_Ni;
                 end
-            end                                                                             
+            end 
+            for i=1:param.nb_subsystems
+                % replace the non-active DGU states by NaN (for practical reason
+                % when states are plotted afterwards).
+                if ~any(i == param.activeDGU(:)) 
+                    X{1}(:,i) = [NaN;NaN];
+                    for n = 1:length_sim 
+                        X{n+1}(:,i) = [NaN;NaN];
+                        U{n}(:,i) = NaN;
+                    end
+                end
+            end
+            
         end
         
     end % end of static methods

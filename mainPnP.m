@@ -42,7 +42,8 @@ control_type = "MPC online";
 dguNet = PnP.setPassiveControllers(dguNet);
 % Compute Qi and Ri matrices in a distributed fashion to ensure global aymptotic
 % stability
-[x0, Q_Ni, Ri] = utils.tuningParam(dguNet, delta_config);
+passivity = true;
+[x0, Q_Ni, Ri] = utils.tuningParam(dguNet, delta_config, passivity);
 % Use the tracking MPC with reconfigurable terminal ingredients  to converge to reference from the initial state
 simStart = 1;
 length_sim = 25;
@@ -54,14 +55,20 @@ dguNet.plot_DGU_system(X,U, config, control_type, dguNet, simStart, 1:6); % plot
 
 %% Test transition phase without reconfigurable terminal ingredients
 delta_config = true;
-[x0, Q_Ni, Ri] = utils.tuningParam(dguNet, delta_config)
+use_passivity = false;
+[x0, Q_Ni, Ri] = utils.tuningParam(dguNet, delta_config, use_passivity);
 dguNet_delta = dguNet;
 dguNet_delta = dguNet_delta.compute_Ref_Constraints(delta_config);
-use_passivity = false;
-[P, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, dguNet, ...
-                                                  use_passivity);
+[dguNet_delta, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, dguNet_delta);
 fprintf("Initial terminal set constrait alpha = %d \n", alpha_i)
-alpha = alpha_i*ones(nb_subsystems,1);
+alpha = alpha_i*ismember(1:6, dguNet_delta.activeDGU)';
+length_sim = 30;
+[Xdelt,Udelt] = PnP.mpc_sim_DGU_delta(@mpc_delta, x0, length_sim, dguNet_delta,...
+                         alpha, Q_Ni, Ri, Gamma_Ni);
+control_type = "MPC with offline computation of terminal ingredients";
+config = "DISTRIBUTED";
+simStart = 1;
+dguNet.plot_DGU_system(Xdelt,Udelt, config, control_type, dguNet_delta, simStart, dguNet_delta.activeDGU)
 %% B) Scenario 2: Connect DGU 6 to DGU 3
 % Set all DGUs to be active. DGU 6 is now active but is not connected yet to the network
 simStart2 = simStart + length_sim;
@@ -76,11 +83,29 @@ dguNet2 = dguNet2.initDynamics(); % recompute Dynamics (changed with integration
 plot(dguNet2.NetGraph, 'EdgeLabel', dguNet2.NetGraph.Edges.Weight, 'Marker', 's', 'NodeColor','r', ...
       'MarkerSize', 7);
 title('Scenario 2: Connection of DGU 6 to the network')
+delta_config = false;
 dguNet2 = dguNet2.compute_Ref_Constraints(delta_config);
+
+%% Redesign and Transition Phase for offline terminal ingredients
+dguNet_delta = dguNet_delta.setActiveDGU(activeDGU_scen2); 
+dguNet2_delta = dguNet2;
+delta_config = true;
+dguNet2_delta = dguNet2_delta.compute_Ref_Constraints(delta_config);
+use_passivity = false;
+[x0, Q_Ni, Ri] = utils.tuningParam(dguNet2_delta, delta_config, use_passivity);
+[dguNet2_delta, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, dguNet2_delta);
+fprintf("Initial terminal set constrait alpha = %d \n", alpha_i)
+alpha = alpha_i*ismember(1:6, dguNet2_delta.activeDGU)';
+length_sim = 30;
+
+
+
+%% Redesign and Transition Phase for online Terminal ingredients
 % Redesign Phase: Compute new  and  of neighbors set of DGU 6 (including DGU 6 itself)
 dguNet2 = PnP.redesignPhase(dguNet2, dguNet2.NetGraph,dguPos, "add");
  % Re-define Q_Ni since neighbors of DGU 3 and 6 changed. Initial values for the 5 first DGUs taken from previous simulation end. 
-[x0, Q_Ni, Ri, Qi] = utils.tuningParam(dguNet2, delta_config); 
+use_passivity = true;
+[x0, Q_Ni, Ri, Qi] = utils.tuningParam(dguNet2, delta_config, use_passivity); 
 for i = activeDGU_scen1
     x0{i} = X{end}(:,i);   %
 end

@@ -47,20 +47,14 @@ function [xs, us] = transition_compute_ss_admm_original(x0, N, paramBefore, ...
                     % after PnP
                     wi{j,k,i}.xi = horzcat(paramBefore.Wij{i}{j}*w_Ni{i,k}.x_Ni,...
                                        paramAfter.Wij{i}{j}*w_Ni{i,k}.x_Ni_mod);
-                    extract_alpha_i = paramAfter.Wij{i}{j}*w_Ni{i,k}.alpha_Ni;
-                    wi{j,k,i}.alpha_i = extract_alpha_i(1); %array was alpha*dim(ni)
-                    wi{j,k,i}.ci = paramAfter.Wij{i}{j}*w_Ni{i,k}.c_Ni;
                 else
                     % if DGU is not active after PnP (i.e. from horizon N -> 2N,
-                    % we don't need to compute the terminal ingredients, 
+                    % we don't need to compute states after disconnection 
                     % set them by zero (default)
                     wi{j,k,i}.xi = horzcat(paramBefore.Wij{i}{j}*w_Ni{i,k}.x_Ni,...
                                    zeros(paramBefore.ni,N));
-                    wi{j,k,i}.alpha_i = 0;
-                    wi{j,k,i}.ci = zeros(paramBefore.ni,1);
                 end     
                 wi{j,k,i}.xei = paramBefore.Wij{i}{j}*w_Ni{i,k}.x_eNi;
-                
             end
         end  
         %% Update global copy of each subsystem
@@ -88,11 +82,6 @@ function [xs, us] = transition_compute_ss_admm_original(x0, N, paramBefore, ...
             neighbors_i = sort([i;neighbors(paramAfter.NetGraph, i)]);
             xi_cellAfter = cellfun(@(x) x.xi(:,N+1:end), zi(neighbors_i,k), 'Un', false);
             z_Ni{i,k}.x_Ni_mod = vertcat(xi_cellAfter{:});
-            alpha_i_cell = cellfun(@(x) x.alpha_i*ones(paramAfter.ni,1), ...
-                           zi(neighbors_i,k), 'Un', false); % format is alpha_i*dim(ni)
-            z_Ni{i,k}.alpha_Ni = vertcat(alpha_i_cell{:});
-            ci_cell = cellfun(@(x) x.ci, zi(neighbors_i,k), 'Un', false);
-            z_Ni{i,k}.c_Ni = vertcat(ci_cell{:});
         end
         for i=unionDGU
             % Update Lagrange Multipliers
@@ -121,11 +110,9 @@ function [xs, us] = transition_compute_ss_admm_original(x0, N, paramBefore, ...
     %% Set variables
     xs = zeros(paramBefore.ni, paramBefore.nb_subsystems);
     us = zeros(paramBefore.nu, paramBefore.nb_subsystems);
-    alpha = zeros(paramBefore.nb_subsystems,1);
     for i=unionDGU
         xs(:,i) = wi{i,end,i}.xei;
         us(:,i) = vi{i,end}.uei;
-        alpha(i) = wi{i,end,i}.alpha_i;
     end
     disp("Feasible steady-state found");
 end
@@ -139,12 +126,10 @@ function [w_Ni, vi, elapsedTime] = local_optim(i,k, x0, N, paramBefore,...
     end
     
     if any(paramAfter.activeDGU(:) == i)
-        [solutionSet, ~, ~, ~, ~, optimTime] = localOptimizer{i}(z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni, z_Ni.c_Ni, ...
-                     y_Ni.x_Ni, y_Ni.x_eNi, y_Ni.alpha_Ni, y_Ni.c_Ni);
+        [solutionSet, ~, ~, ~, ~, optimTime] = localOptimizer{i}(z_Ni.x_Ni, ...
+         z_Ni.x_eNi, y_Ni.x_Ni, y_Ni.x_eNi);
                  
-    w_Ni.x_Ni_mod = solutionSet{6};
-    w_Ni.alpha_Ni = solutionSet{7};
-    w_Ni.c_Ni = solutionSet{8};
+    w_Ni.x_Ni_mod = solutionSet{5};
     
     else
         [solutionSet, ~, ~, ~, ~, optimTime] = localOptimizer{i}(z_Ni.x_Ni, z_Ni.x_eNi, ...
@@ -156,9 +141,8 @@ function [w_Ni, vi, elapsedTime] = local_optim(i,k, x0, N, paramBefore,...
     end
     vi.ui = solutionSet{1};
     vi.uei = solutionSet{2};
-    vi.di = solutionSet{3};
-    w_Ni.x_Ni = solutionSet{4};
-    w_Ni.x_eNi = solutionSet{5};
+    w_Ni.x_Ni = solutionSet{3};
+    w_Ni.x_eNi = solutionSet{4};
      
     elapsedTime= optimTime.solvertime;
 end
@@ -211,9 +195,7 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter,alpha_
     %% Equilibrium constraints
     constraints_i = [constraints_i, Xei == paramBefore.A_Ni{i}*X_eNi + ...
                                             paramBefore.Bi{i}*Uei];
-    constraints_i = [constraints_i, X_eNi(idx_Ni)==Xei];
-    % With new redesigned local passive feedback gains
-    constraints_i = [constraints_i, Uei == paramAfter.Ki{i}*Xei + di];  
+    constraints_i = [constraints_i, X_eNi(idx_Ni)==Xei]; 
    
     %% Planning Horizon Loop 1->N for the 1st Optimization Part
     for n = 1:N-1 
@@ -253,9 +235,9 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter,alpha_
        % Terminal Set constraints
         constraints_i = [constraints_i, Xi(:,end)'*paramAfter.Pi{i}*Xi(:,end)...
                                    <= alpha_i];          
-    solutions_out = {Ui, Uei, di, X_Ni, X_eNi, X_Ni_mod};
+    solutions_out = {Ui, Uei, X_Ni, X_eNi, X_Ni_mod};
     else
-        solutions_out = {Ui, Uei, di, X_Ni, X_eNi};
+        solutions_out = {Ui, Uei, X_Ni, X_eNi};
     end
     parameters_in = {z_Ni.x_Ni, z_Ni.x_eNi,y_Ni.x_Ni, y_Ni.x_eNi};
     ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
