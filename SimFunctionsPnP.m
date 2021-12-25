@@ -123,12 +123,13 @@ classdef SimFunctionsPnP
                 disp("Error: Choose ADMM to be true or false");
                 
             end
-
+            disp("Steady-State Xs = "); disp(xs);
+            disp("Steady-State Us = "); disp(us);
             % MPC REGULATION to steady state
             X{1} = horzcat(x0{:});
             clear regulation2ss
             n = 1;
-            while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 1e-1) || ...
+            while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 5e-2) || ...
                   any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 5e-2)    
                     % control input is of size nu x M 
                     if ADMM
@@ -165,6 +166,55 @@ classdef SimFunctionsPnP
             end                                   
         end
         
+        function [X, U, lenSim, xs, us, alpha] = transitionPhaseDeltaADMM(x0, paramBefore,...
+                                                         paramAfter, Qi, Ri, target, alpha)
+            N = 5; %Horizon  
+            X{1} = horzcat(x0{:});
+            dX{1} = X{1}-horzcat(paramAfter.Xref{:});
+            [dXs, dUs] = transition_compute_delta_ss_admm(dX{1}, N, paramBefore,...
+                                        paramAfter, target, alpha);
+            xs = dXs + horzcat(paramAfter.Xref{:}); % reference for system after PnP
+            us = dUs + horzcat(paramAfter.Uref{:});
+            disp("Steady-State Xs = "); disp(xs);
+            disp("Steady-State Us = "); disp(us);
+            
+            n = 1;
+            clear regulation2ss
+            while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 1e-1) || ...
+                  any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 5e-2)    
+                    % control input is of size nu x M 
+                   
+                    dU{n} = regulation2ss(dX{n}, N, paramBefore, dXs, dUs, Qi, Ri); % get first control input
+                    U{n} = dU{n} + horzcat(paramAfter.Uref{:});
+                    if isnan(U{n})
+                        error("Input to apply to controller is Nan at iteration %d",n);
+                    end
+                    for i=paramBefore.activeDGU % Only modify the activated DGU to reach s-s
+                        neighbors_i = sort([i; neighbors(paramBefore.NetGraph, i)]); % get neighbors
+                        % create neighbor state vector comprising the state of subsystem i
+                        % and the state of it's neighbors (concatenated)
+                        x_Ni = reshape(dX{n}(:,neighbors_i),[],1); 
+                        dX{n+1}(:, i) = paramBefore.A_Ni{i}*x_Ni + paramBefore.Bi{i}*dU{n}(:,i);
+                        X{n+1}(:,i) = dX{n+1}(:,i) + paramAfter.Xref{i};
+                    end   
+                    fprintf("Regulation to steady-state: iteration %d \n", n);
+                    n = n+1;         
+            end  
+            lenSim = n;
+            if lenSim == 1 % if already at steady state
+                U{n} = us;
+            end
+            for i=1:paramBefore.nb_subsystems
+                if ~any(i == paramBefore.activeDGU(:))
+                    X{1}(:,i) = [NaN;NaN];
+                    for n = 1:lenSim
+                        X{n+1}(:,i) = [NaN;NaN];
+                        U{n}(:,i) = NaN;
+                    end
+                end
+            end
+        end
+                                                     
         %% ------------------------- MPC CONTROLLERS--------------------------%%
         %----- TRACKING MPC WITH RECONFIGURABLE TERMINAL INGREDIENTS ----------%
         function [X,U] = mpc_DGU_tracking(controller, x0, length_sim,param, Q_Ni,...

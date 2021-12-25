@@ -132,6 +132,7 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
         alpha(i) = wi{i,end,i}.alpha_i;
     end
     disp("Feasible steady-state found");
+    fprintf("Total iterations %d and total time elapsed %d \n", l-1, Tk);
 end
 
 function [w_Ni, vi, elapsedTime] = local_optim(i,k, x0, N, paramBefore, paramAfter,z_Ni, y_Ni,...

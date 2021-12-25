@@ -1,5 +1,5 @@
 
-function [xs, us] = transition_compute_ss_admm_original(x0, N, paramBefore, ...
+function [xs, us] = transition_compute_delta_ss_admm(x0, N, paramBefore, ...
                                                            paramAfter, target, alpha)
     rho = 0.25;
     TMAX = 100;
@@ -102,7 +102,8 @@ function [xs, us] = transition_compute_ss_admm_original(x0, N, paramBefore, ...
         if r_norm{k} < 0.75 && s_norm{k} < 0.75
             break;
         end
-        fprintf("Iteration %d,  Time elapsed for each iteration %d \n", l, Tk);
+        fprintf("Iteration %d,  Time elapsed for each iteration %d \n", l, ...
+                 elapsedTime);
         k = k+1;
         l = l+1;
        
@@ -115,6 +116,7 @@ function [xs, us] = transition_compute_ss_admm_original(x0, N, paramBefore, ...
         us(:,i) = vi{i,end}.uei;
     end
     disp("Feasible steady-state found");
+    fprintf("Total iterations %d and total time elapsed %d \n", l-1, Tk);
 end
 
 function [w_Ni, vi, elapsedTime] = local_optim(i,k, x0, N, paramBefore,...
@@ -208,8 +210,7 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter,alpha_
     end
     
     if target == "reference"
-        objective_i = objective_i + 100*(Xei - paramAfter.Xref{i})'*...
-                                        (Xei - paramAfter.Xref{i});%1*norm(Xei-param.Xref{i},2);
+        objective_i = objective_i + 100*(Xei - 0)'*(Xei - 0);
     elseif target == "current state"
         objective_i = objective_i + 100*(Xei-x0(:,i))'*(Xei-x0(:,i));
     else

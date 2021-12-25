@@ -109,7 +109,7 @@ function localOptimizer = init_optimizer(xs_i, us_i, i, N, Qi, Ri, param, rho)
        objective_i = objective_i + y_Ni.x_Ni(:,n)'*(X_Ni(:,n)-z_Ni.x_Ni(:,n)) + ...
                      rho/2 * (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n));
     end
-    constraints_i = [constraints_i, X_Ni(idx_Ni,N) == Xi(:,N)];
+    constraints_i = [constraints_i, X_Ni(idx_Ni,N) == Xi(:,N), Xi(:,N)==xs_i];
     
     objective_i = objective_i + y_Ni.x_Ni(:,N)'*(X_Ni(:,N)-z_Ni.x_Ni(:,N)) + ...
                    rho/2 * (X_Ni(:,N)-z_Ni.x_Ni(:,N))'*(X_Ni(:,N)-z_Ni.x_Ni(:,N));
@@ -120,7 +120,6 @@ function localOptimizer = init_optimizer(xs_i, us_i, i, N, Qi, Ri, param, rho)
 
     solutions_out = {X_Ni, Ui};
     localOptimizer = optimizer(constraints_i,objective_i,ops,parameters_in,solutions_out);
-    %solutionSet = mpc_optimizer(x0);
 
 end
 
@@ -137,8 +136,8 @@ function [constraints_i, objective_i] = dynamicsConstraints(constraints_i,object
     constraints_i = [constraints_i, param.Gu_i{i} * Ui(:,n)...
                                <= param.fu_i{i}];
     objective_i = objective_i + ...
-                    10*(Xi(:,n)-xs_i)'*Qi*(Xi(:,n)-xs_i)+...
-                    100*(Ui(:,n)-us_i)'*Ri*(Ui(:,n)-us_i);
+                    (Xi(:,n)-xs_i)'*Qi*(Xi(:,n)-xs_i)+...
+                    (Ui(:,n)-us_i)'*Ri*(Ui(:,n)-us_i);
 
 end
 

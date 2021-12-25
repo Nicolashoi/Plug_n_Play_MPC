@@ -52,7 +52,8 @@ function mpc_optimizer = init_optimizer(N, param, xs, us, Qi, Ri)
             objective = objective + ...
                         (X{n}(:,i)-xs(:,i))'*Qi{i}*(X{n}(:,i)-xs(:,i))+...
                         (U{n}(:,i)-us(:,i))'*Ri{i}*(U{n}(:,i)-us(:,i));                    
-        end              
+        end
+        constraints = [constraints, X{end}(:,i) == xs(:,i)];
     end    
     % parameter for initial condition
     %constraints = [constraints, X{1} == X0];

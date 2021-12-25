@@ -92,7 +92,7 @@ dguNet2_delta = dguNet2;
 delta_config = true;
 dguNet2_delta = dguNet2_delta.compute_Ref_Constraints(delta_config);
 use_passivity = false;
-[x0, Q_Ni, Ri] = utils.tuningParam(dguNet2_delta, delta_config, use_passivity);
+[x0, Q_Ni, Ri, Qi] = utils.tuningParam(dguNet2_delta, delta_config, use_passivity);
 [dguNet2_delta, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, dguNet2_delta);
 fprintf("Initial terminal set constrait alpha = %d \n", alpha_i)
 alpha = alpha_i*ismember(1:6, dguNet2_delta.activeDGU)';
@@ -105,6 +105,7 @@ length_sim = 30;
 dguNet2 = PnP.redesignPhase(dguNet2, dguNet2.NetGraph,dguPos, "add");
  % Re-define Q_Ni since neighbors of DGU 3 and 6 changed. Initial values for the 5 first DGUs taken from previous simulation end. 
 use_passivity = true;
+delta_config = false;
 [x0, Q_Ni, Ri, Qi] = utils.tuningParam(dguNet2, delta_config, use_passivity); 
 for i = activeDGU_scen1
     x0{i} = X{end}(:,i);   %
