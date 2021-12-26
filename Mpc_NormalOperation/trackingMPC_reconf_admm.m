@@ -1,4 +1,4 @@
-function [u0, alpha, ci] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
+function [u0, alpha, Tk] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
     rho = 0.25;
     TMAX = 40;
     Tk = 0; k = 2; l=1;
@@ -82,8 +82,8 @@ function [u0, alpha, ci] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
     c = zeros(param.ni,param.nb_subsystems);
     for i=param.activeDGU
         u0(:,i) = vi{i,end}.ui(:,1);
-        alpha(i) = wi{i,k,i}.alpha_i;
-        c(:,i) = wi{i,k,i}.ci;
+        alpha(i) = wi{i,end,i}.alpha_i;
+        c(:,i) = wi{i,end,i}.ci;
     end
 end
 
@@ -204,7 +204,7 @@ function localOptimizer = init_optimizer(x0, i, Q_Ni, Ri, N, param, rho)
     %--------------------------------------------------------------------------%
     % Constraints for augmented Lagrangian are added to objective
     constraints_i = [constraints_i, eTerm_L >= y_Ni.alpha_Ni'*(diag(alpha_Ni) ...
-                    - z_Ni.alpha_Ni) +.y_Ni.c_Ni'*(c_Ni - z_Ni.c_Ni),...
+                    - z_Ni.alpha_Ni) + y_Ni.c_Ni'*(c_Ni - z_Ni.c_Ni),...
                     eTerm_Q >= rho/2*(diag(alpha_Ni) - z_Ni.alpha_Ni)'...
                     *(diag(alpha_Ni) - z_Ni.alpha_Ni) + rho/2 ...
                     *(c_Ni - z_Ni.c_Ni)'*(c_Ni - z_Ni.c_Ni)];

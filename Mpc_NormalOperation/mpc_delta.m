@@ -5,7 +5,7 @@
 % Following Algorithm 2 of "Distributed Synthesis and Control of Constrained
 % Linear Systems"
 
-function [u0, Xend] = mpc_delta(x0, alpha, Q_Ni, Ri, N, param)
+function [u0, Xend,solveTime] = mpc_delta(x0, alpha, Q_Ni, Ri, N, param)
     persistent mpc_optimizer
     % initialize controller, if not done already
     if isempty(mpc_optimizer)
@@ -15,6 +15,7 @@ function [u0, Xend] = mpc_delta(x0, alpha, Q_Ni, Ri, N, param)
     if isequal(feasibility.problem,1)
         disp(feasibility.infostr);
     end
+    solveTime = feasibility.solvertime;
     u0 = sol{1};
     Xend = sol{2};
 end

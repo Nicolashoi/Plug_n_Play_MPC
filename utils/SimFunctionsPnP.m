@@ -219,7 +219,7 @@ classdef SimFunctionsPnP
                                                      
         %% ------------------------- MPC CONTROLLERS--------------------------%%
         %----- TRACKING MPC WITH RECONFIGURABLE TERMINAL INGREDIENTS ----------%
-        function [X,U, alpha] = mpc_DGU_tracking(controller, x0, length_sim,param, Q_Ni,...
+        function [X,U, alpha, solverTimeTotal] = mpc_DGU_tracking(controller, x0, length_sim,param, Q_Ni,...
                                           Ri)
                                       
             X = cell(1,length_sim+1); % state at each timestep
@@ -235,11 +235,12 @@ classdef SimFunctionsPnP
             clear (controllerType.file)
              
             N = 5; % Horizon
-       
+            solverTimeTotal = 0;
             for n = 1:length_sim % loop over all subsystem
                 % control input is of size nu x M 
                 fprintf("---- Simulation step %d ---- \n", n);
-                [U{n}, alpha{n}] = controller(X{n}, Q_Ni, Ri, N, param); % get first control input
+                [U{n}, alpha{n}, Tk] = controller(X{n}, Q_Ni, Ri, N, param); % get first control input
+                solverTimeTotal = solverTimeTotal + Tk;
                 if isnan(U{n})
                     error("Input to apply to controller is Nan at iteration %d",n);
                 end
@@ -253,6 +254,7 @@ classdef SimFunctionsPnP
                 end
                 
             end
+            fprintf("Total solver time for simulation time = %d \n", solverTimeTotal);
             for i=1:param.nb_subsystems
                 % replace the non-active DGU states by NaN (for practical reason
                 % when states are plotted afterwards).
@@ -267,7 +269,7 @@ classdef SimFunctionsPnP
         end
         
         %----- MPC DELTA FORMULATION WITH OFFLINE TERMINAL INGREDIENTS --------%
-        function [X,U,alphaEvolution ] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
+        function [X,U,alphaEvolution, solverTimeTotal] = mpc_sim_DGU_delta(controller, x0, length_sim, param,...
                                           alpha, Q_Ni, Ri, Gamma_Ni)
                                       
             dX = cell(1,length_sim+1); % state at each timestep
@@ -285,11 +287,13 @@ classdef SimFunctionsPnP
             controllerType = functions(controller);
             fprintf("--INFO: Using controller %s -- \n ", controllerType.function);
             clear (controllerType.file)
-            
+            solverTimeTotal = 0;
             for n = 1:length_sim % loop over all subsystem
                 % control input is of size nu x M
-                [dU{n}, dXend] = controller(dX{n}, alpha, Q_Ni, Ri, N, param); % get first control input
-                U{n} = dU{n} + horzcat(param.Uref{:});
+               fprintf("---- Simulation step %d ---- \n", n);
+               [dU{n}, dXend, Tk] = controller(dX{n}, alpha, Q_Ni, Ri, N, param); % get first control input
+               solverTimeTotal = solverTimeTotal + Tk; 
+               U{n} = dU{n} + horzcat(param.Uref{:});
                 if isnan(dU{n})
                     error("Input to apply to controller is Nan at iteration %d",n);
                 end
@@ -308,6 +312,7 @@ classdef SimFunctionsPnP
                 end
                 alphaEvolution{n} = alpha;
             end 
+            fprintf("Total solver time for simulation time = %d \n", solverTimeTotal);
             for i=1:param.nb_subsystems
                 % replace the non-active DGU states by NaN (for practical reason
                 % when states are plotted afterwards).

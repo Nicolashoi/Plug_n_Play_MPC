@@ -173,15 +173,15 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter,alpha_
     y_Ni.x_Ni_mod = sdpvar(n_Ni_after, N, 'full'); 
      
     
-       eX_Ni_L = sdpvar(N,1,'full');  
+    eX_Ni_L = sdpvar(N,1,'full');  
     eX_eNi_L = sdpvar(1, 1, 'full');
     eX_Ni_mod_L = sdpvar(N,1, 'full'); 
-    eTerm_L = sdpvar(1,1, 'full');
+
 
     eX_Ni_Q = sdpvar(N,1,'full');  
     eX_eNi_Q = sdpvar(1, 1, 'full');
     eX_Ni_mod_Q = sdpvar(N,1, 'full'); 
-    eTerm_Q = sdpvar(1,1, 'full');
+
     
     % States and Input of subsystem i
     Xi = sdpvar(ni,2*N, 'full');
