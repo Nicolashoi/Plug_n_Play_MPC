@@ -1,12 +1,18 @@
-function u0 = trackingMPC_reconf(x0, Q_Ni, Ri, N, param)
+function [u0, alpha] = trackingMPC_reconf(x0, Q_Ni, Ri, N, param)
     persistent mpc_optimizer
     % initialize controller, if not done already
     if isempty(mpc_optimizer)
         mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param);
     end
-    [u0, ~, ~, ~, ~, feasibility]= mpc_optimizer(x0);
-    %disp(feasibility.infostr);
-     %sol = mpc_optimizer(x0);
+    [sol, ~, ~, ~, ~, feasibility]= mpc_optimizer(x0);
+    if isequal(feasibility.problem,1)
+        disp(feasibility.infostr);
+    end
+    u0 = sol{1};
+    alpha = sol{2};
+    c = sol{3};
+    Xend = sol{4};
+
 end
  
 function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
@@ -91,7 +97,7 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
 %                     zeros(size(alpha(i),1),size(sumLambdaP_ij,2)) , alpha(i) - sumLambda_ij];
 %                  
 %         LMI = [LMI_1; LMI_2; LMI_3];
-        %constraints = [constraints, LMI>=0];    
+%         constraints = [constraints, LMI>=0];    
         
         %% Equation 14: Approx of LMI with diagonal dominance
         PiInv = inv(param.Pi{i});
@@ -131,7 +137,7 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
                 
             end
             constraints = [constraints, param.Gu_i{i}(k,:)*param.K_Ni{i}*c_Ni{i} + ...
-                           param.Gu_i{i}(k,:)*di(:,i) + sum_GxNorm2...
+                           param.Gu_i{i}(k,:)*di(:,i) + sum_GuNorm2...
                            <= param.fu_i{i}(k)];    
         end
         
@@ -165,17 +171,17 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
                     (Xe(:,i) - param.Xref{i})'*S{i}*(Xe(:,i) - param.Xref{i});
                         
         %%  Terminal Set condition
-        constraints = [constraints, (X{end}(:,i)-ci(:,i))'*param.Pi{i}*(X{end}(:,i)-ci(:,i))...
-                                    <= alpha(i)^2];      
-
-    end    
-    % parameter for initial condition
-    %constraints = [constraints, X{1} == X0];
-    
+%         constraints = [constraints, (X{N}(:,i)-ci(:,i))'*param.Pi{i}*(X{N}(:,i)-ci(:,i))...
+%                                     <= 2];   
+        LMI_terminal = [inv(param.Pi{i})*alpha(i), X{end}(:,i) - ci(:,i);...
+                        (X{end}(:,i) - ci(:,i))', alpha(i)];
+        constraints = [constraints, LMI_terminal >= 0];
+         
+    end        
     %% Create optimizer object 
     ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
     parameters_in = {X0};
     %solutions_out = {[U{:}], [X_eNi{1}], [X_eNi{2}], [X_eNi{3}], di, Ue}; % general form 
-    solutions_out = U{1}; % get U0 for each subsystem, size nu x M
+    solutions_out = {U{1}, alpha, ci, X{end}}; % get U0 for each subsystem, size nu x M
     mpc_optimizer = optimizer(constraints,objective,ops,parameters_in,solutions_out);
 end

@@ -5,16 +5,18 @@
 % Following Algorithm 2 of "Distributed Synthesis and Control of Constrained
 % Linear Systems"
 
-function u0 = mpc_delta(x0, alpha, Q_Ni, Ri, N, param)
+function [u0, Xend] = mpc_delta(x0, alpha, Q_Ni, Ri, N, param)
     persistent mpc_optimizer
     % initialize controller, if not done already
     if isempty(mpc_optimizer)
         mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param);
     end
-    [u0, ~, ~, ~, ~, feasibility]= mpc_optimizer(x0, alpha);
+    [sol, ~, ~, ~, ~, feasibility]= mpc_optimizer(x0, sqrt(alpha));
     if isequal(feasibility.problem,1)
         disp(feasibility.infostr);
     end
+    u0 = sol{1};
+    Xend = sol{2};
 end
  
 function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
@@ -62,8 +64,12 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
         end
         % Terminal cost
         objective = objective + X{end}(:,i)'*param.Pi{i}*X{end}(:,i);
-        constraints = [constraints, X{end}(:,i)'*param.Pi{i}*X{end}(:,i)...
-                                  <= alpha_var(i)];                             
+%         constraints = [constraints, X{end}(:,i)'*param.Pi{i}*X{end}(:,i)...
+%                                   <= alpha_var(i)];
+ 
+        LMI_terminalSet = [inv(param.Pi{i})*alpha_var(i), X{end}(:,i);...
+                        X{end}(:,i)', alpha_var(i)];
+        constraints = [constraints, LMI_terminalSet >= 0];
     end    
     % parameter for initial condition
 %     constraints = [constraints, X{1} == X0];
@@ -72,6 +78,6 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
     ops = sdpsettings('verbose',1); %options
     parameters_in = {X0, alpha_var};
     %solutions_out = {[U{1}], [X{:}], [X_Ni{:}]}; % general form 
-    solutions_out = U{1}; % get U0 for each subsystem, size nu x M
+    solutions_out = {U{1}, [X{end}]}; % get U0 for each subsystem, size nu x M
     mpc_optimizer = optimizer(constraints,objective,ops,parameters_in,solutions_out);
 end

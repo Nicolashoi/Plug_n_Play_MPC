@@ -34,8 +34,6 @@ function [obj, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, obj)
 end
 
 function [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, param)
-    objective = 0;
- 
     ni = param.ni;
     M = param.nb_subsystems;%length(param.activeDGU);
     global Ei E H_Ni Y_Ni E_Ni Ebar
@@ -48,10 +46,10 @@ function [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, pa
     E_Ni = cell(1,M);
     Ebar = cell(1,M);
     E = blkdiag(Ei{:}); 
-    constraints = define_constraints(Q_Ni, Ri, param, ni,M);
+    objective = 0;
+    [constraints, objective] = define_constraints(objective, Q_Ni, Ri, param, ni);
     %% OPTIMIZER
     ops = sdpsettings('solver', 'MOSEK', 'verbose',0);
-    %ops.mosek.MSK_IPAR_INFEAS_REPORT_AUTO = 'MSK_ON';
     diagnostics = optimize(constraints, objective, ops);
     if diagnostics.problem == 1
         error('MOSEK solver thinks algorithm 1 is infeasible')
@@ -67,12 +65,13 @@ function [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, pa
     end
 end
 
-function constraints = define_constraints(Q_Ni, Ri, param, ni, M)
+function [constraints, objective] = define_constraints(objective, Q_Ni, Ri, param, ni)
     epsilon = 1e-5; % tolerance for positive definite constraint on E and E_Ni
     global Ei E H_Ni Y_Ni E_Ni Ebar
     pi = size(param.Bi{1},2);
     constraints = [];
     %% Constraint definition
+    LMI_2 = 0;
     for i = param.activeDGU
         n_Ni = size(param.W{i},1); % size of the set Ni (i and it's neighbors)
         % decision variables dependent on it's subsystem neighbors set size
@@ -80,6 +79,7 @@ function constraints = define_constraints(Q_Ni, Ri, param, ni, M)
         E_Ni{i} = param.W{i}*E*param.W{i}';
         H_Ni{i} = sdpvar(n_Ni, n_Ni, 'full');
         Y_Ni{i} = sdpvar(pi, n_Ni, 'full');
+        
         constraints = [constraints, Ei{i} >= epsilon*eye(size(Ei{i})),...
                        E_Ni{i} >= epsilon*eye(size(E_Ni{i}))] ; %P.D
         LMI{1} = [Ebar{i} + H_Ni{i}, E_Ni{i}*param.A_Ni{i}'+Y_Ni{i}'*param.Bi{i}',...
@@ -89,13 +89,13 @@ function constraints = define_constraints(Q_Ni, Ri, param, ni, M)
         LMI{3} = [(Q_Ni{i}^1/2)*E_Ni{i},zeros(n_Ni,ni), eye(n_Ni),...
                     zeros(n_Ni, pi)];
         LMI{4} = [(Ri{i}^1/2)*Y_Ni{i}, zeros(pi, ni), zeros(pi,n_Ni), eye(pi)];
+        % LMI 25 of the paper
         LMI_1 = [LMI{1}; LMI{2}; LMI{3}; LMI{4}];
         constraints = [constraints, LMI_1 >= 0];
-        if i == 1
-            LMI_2 = param.W{i}'*H_Ni{i}*param.W{i};
-        else
-            LMI_2 = LMI_2 + param.W{i}'*H_Ni{i}*param.W{i};
-        end
+        % LMI 26 of the paper
+        LMI_2 = LMI_2 + param.W{i}'*H_Ni{i}*param.W{i};
+        % objective
+        objective = objective + trace(H_Ni{i});
     end
     constraints = [constraints, LMI_2 <= 0];
 end

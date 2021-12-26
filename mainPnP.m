@@ -47,7 +47,7 @@ passivity = true;
 % Use the tracking MPC with reconfigurable terminal ingredients  to converge to reference from the initial state
 simStart = 1;
 length_sim = 25;
-[X, U] = PnP.mpc_DGU_tracking(@trackingMPC_reconf, x0, length_sim, dguNet, Q_Ni, Ri);
+[X, U, alphaEvolution] = PnP.mpc_DGU_tracking(@trackingMPC_reconf, x0, length_sim, dguNet, Q_Ni, Ri);
 dguNet.plot_DGU_system(X,U, config, control_type, dguNet, simStart, 1:6); % plot results
 % clear X U
 % [X, U] = PnP.mpc_DGU_tracking(@trackingMPC_reconf_admm, x0, length_sim, dguNet, Q_Ni, Ri);
@@ -63,8 +63,16 @@ dguNet_delta = dguNet_delta.compute_Ref_Constraints(delta_config);
 fprintf("Initial terminal set constrait alpha = %d \n", alpha_i)
 alpha = alpha_i*ismember(1:6, dguNet_delta.activeDGU)';
 length_sim = 30;
-[Xdelt,Udelt] = PnP.mpc_sim_DGU_delta(@mpc_delta, x0_delta, length_sim, dguNet_delta,...
+[Xdelt,Udelt, alphaEvolution] = PnP.mpc_sim_DGU_delta(@mpc_delta, x0_delta, length_sim, dguNet_delta,...
                          alpha, Q_Ni, Ri, Gamma_Ni);
+alphaEvolArray = cell2mat(alphaEvolution);
+figure()
+plot(alphaEvolArray(dguNet_delta.activeDGU, :)');
+hold on
+title("Evolution of Terminal set size")
+xlabel("Simulation step");
+hold off
+
 control_type = "MPC with offline computation of terminal ingredients";
 config = "DISTRIBUTED";
 simStart = 1;

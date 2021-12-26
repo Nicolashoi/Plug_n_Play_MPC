@@ -1,4 +1,4 @@
-function u0 = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
+function [u0, alpha, ci] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
     rho = 0.25;
     TMAX = 40;
     Tk = 0; k = 2; l=1;
@@ -78,8 +78,12 @@ function u0 = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
     end
     fprintf("Time elapsed to converge %d and number of iterations %d \n", Tk, l-1);
     u0 = zeros(1,param.nb_subsystems);
+    alpha = zeros(param.nb_subsystems,1);
+    c = zeros(param.ni,param.nb_subsystems);
     for i=param.activeDGU
         u0(:,i) = vi{i,end}.ui(:,1);
+        alpha(i) = wi{i,k,i}.alpha_i;
+        c(:,i) = wi{i,k,i}.ci;
     end
 end
 
@@ -278,7 +282,7 @@ function [constraints_i, alpha_Ni, c_Ni] = terminalConstraints(constraints_i, pa
                 
             end
             constraints_i = [constraints_i, param.Gu_i{i}(k,:)*param.K_Ni{i}*c_Ni + ...
-                           param.Gu_i{i}(k,:)*di + sum_GxNorm2...
+                           param.Gu_i{i}(k,:)*di + sum_GuNorm2...
                            <= param.fu_i{i}(k)];    
         end
 end
