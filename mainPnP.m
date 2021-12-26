@@ -97,7 +97,8 @@ use_passivity = false;
 fprintf("Initial terminal set constrait alpha = %d \n", alpha_i)
 alpha = alpha_i*ismember(1:6, dguNet2_delta.activeDGU)';
 length_sim = 30;
-
+[X2_delt,U2_delt,lenSim, xs,us] = PnP.transitionPhaseDeltaADMM(x0_delta, dguNet_delta,...
+                                  dguNet2_delta, Qi, Ri, 'reference', alpha);
 
 
 %% Redesign and Transition Phase for online Terminal ingredients
@@ -143,7 +144,23 @@ plot(dguNet3.NetGraph, 'EdgeLabel', dguNet3.NetGraph.Edges.Weight, 'Marker', 's'
       'MarkerSize', 7);
 title('Scenario where DGU 4 is to be plugged out')
 dguNet3 = dguNet3.compute_Ref_Constraints(delta_config);
-% Redesign Phase: Compute new  and  of neighbors set of DGU 4
+
+
+%% Redesign with Lyapunov
+dguNet3_delta = dguNet3;
+delta_config = true;
+dguNet3_delta = dguNet3_delta.compute_Ref_Constraints(delta_config);
+use_passivity = false;
+[x0_delta, Q_Ni, Ri, Qi] = utils.tuningParam(dguNet3_delta, delta_config, use_passivity);
+[dguNet3_delta, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, dguNet3_delta);
+fprintf("Initial terminal set constrait alpha = %d \n", alpha_i)
+alpha = alpha_i*ismember(1:6, dguNet3_delta.activeDGU)';
+length_sim = 30;
+[X3_delt,U3_delt,lenSim, xs,us] = PnP.transitionPhaseDeltaADMM(x0_delta, dguNet2_delta,...
+                                  dguNet3_delta, Qi, Ri, 'reference', alpha);
+
+
+%% Redesign Phase: Compute new  and  of neighbors set of DGU 4
 dguNet3 = PnP.redesignPhase(dguNet3, dguNet2.NetGraph, dguDelete, "delete");
 % Transition Phase: Take as initial state the end of simulation of scenario 2
 % call again since dimension of Q_Ni change when adding/removing DGU

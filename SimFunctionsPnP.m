@@ -166,7 +166,7 @@ classdef SimFunctionsPnP
             end                                   
         end
         
-        function [X, U, lenSim, xs, us, alpha] = transitionPhaseDeltaADMM(x0, paramBefore,...
+        function [X, U, lenSim, xs, us] = transitionPhaseDeltaADMM(x0, paramBefore,...
                                                          paramAfter, Qi, Ri, target, alpha)
             N = 5; %Horizon  
             X{1} = horzcat(x0{:});
@@ -179,12 +179,11 @@ classdef SimFunctionsPnP
             disp("Steady-State Us = "); disp(us);
             
             n = 1;
-            clear regulation2ss
             while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 1e-1) || ...
                   any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 5e-2)    
                     % control input is of size nu x M 
                    
-                    dU{n} = regulation2ss(dX{n}, N, paramBefore, dXs, dUs, Qi, Ri); % get first control input
+                    dU{n} = regulation2ss_admm(dX{n}, N, paramBefore, dXs, dUs, Qi, Ri); % get first control input
                     U{n} = dU{n} + horzcat(paramAfter.Uref{:});
                     if isnan(U{n})
                         error("Input to apply to controller is Nan at iteration %d",n);
