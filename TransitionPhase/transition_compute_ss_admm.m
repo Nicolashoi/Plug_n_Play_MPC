@@ -2,7 +2,8 @@
 function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
                                                            paramAfter, target)
     rho = 0.25;
-    TMAX = 100;
+    TMAX = 3;
+    centralStopCond = true;
     Tk = 0; k = 2; l=1;
     % all the DGU concerned i.e. M U P (actual network + DGU's to be plugged in
     % or out
@@ -29,10 +30,10 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
     end
     % Loop while terminal terminal time not overrunned
     while(Tk < TMAX)
+        elapsedTime = zeros(1,length(param.activeDGU));
         for i = unionDGU % loop over all subsystems
-            [w_Ni{i,k}, vi{i,k}, elapsedTime] = local_optim(i,k, x0, N, paramBefore, paramAfter,...
+            [w_Ni{i,k}, vi{i,k}, elapsedTime(i)] = local_optim(i,k, x0, N, paramBefore, paramAfter,...
                                  z_Ni{i,l}, y_Ni{i,l}, rho, target);
-            Tk = Tk + elapsedTime; 
             % Obtain the sorted list of neighbors of system i: this list will be
             % used to update the local copies of each decision variable. The
             % intersection of the DGU neighbors connected before and after PnP
@@ -67,6 +68,7 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
                 
             end
         end  
+       Tk = Tk + max(elapsedTime); 
         %% Update global copy of each subsystem
         for i = unionDGU
             % Again do the average estimate over the smallest subset (either
@@ -106,18 +108,20 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
         end
         %% Terminal condition which is centralized (good for having an estimate 
         % of how much time iteration are needed
-        r_norm{k} = 0;
-        s_norm{k} = 0;
-        for i = unionDGU
-            r_struct = diff_struct(w_Ni{i,k}, z_Ni{i,k});
-            r_norm{k} = r_norm{k} + sum(vecnorm(r_struct.x_Ni,2));
-            s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
-            s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
+        if centralStopCond
+            r_norm{k} = 0;
+            s_norm{k} = 0;
+            for i = unionDGU
+                r_struct = diff_struct(w_Ni{i,k}, z_Ni{i,k});
+                r_norm{k} = r_norm{k} + sum(vecnorm(r_struct.x_Ni,2));
+                s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
+                s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
+            end
+            if r_norm{k} < 0.1 && s_norm{k} < 0.1
+                break;
+            end
         end
-        if r_norm{k} < 0.1 && s_norm{k} < 0.1
-            break;
-        end
-        fprintf("Iteration %d,  Time elapsed for each iteration %d \n", l, Tk);
+        fprintf("Iteration %d,  Max system time elapsed for each ADMM iteration is %d \n", l, Tk);
         k = k+1;
         l = l+1;
        
@@ -281,16 +285,18 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter, rho, 
          ci, di,  alpha_i, lambda_i, bi);
 
         %---- Terminal set condition (Reconfigurable Terminal Ingredients)-----% 
-         LMI_terminal = [inv(paramAfter.Pi{i})*alpha_i(i), Xi(:,end) - ci(:,i);...
-                        Xi(:,end)' - ci(:,i)', alpha_i(i)];
-        constraints_i = [constraints_i, LMI_terminal >= 0];
+%          LMI_terminal = [inv(paramAfter.Pi{i})*alpha_i(i), Xi(:,end) - ci(:,i);...
+%                         Xi(:,end)' - ci(:,i)', alpha_i(i)];
+%         constraints_i = [constraints_i, LMI_terminal >= 0];
+        constraints_i = [constraints_i, norm(paramAfter.Pi{i}^(1/2)*(Xi(:,end)-ci(:,i)),2) <= alpha_i(i)];
+        constraints_i = [constraints_i, alpha_i(i) >= 0];
         %----------------------------------------------------------------------%
         % Constraints for augmented Lagrangian are added to objective
        constraints_i = [constraints_i, eTerm_L >= y_Ni.alpha_Ni'*(diag(alpha_Ni) ...
-                        - z_Ni.alpha_Ni) +y_Ni.c_Ni'*(c_Ni - z_Ni.c_Ni),...
-                        eTerm_Q >= rho/2*(diag(alpha_Ni) - z_Ni.alpha_Ni)'...
-                        *(diag(alpha_Ni) - z_Ni.alpha_Ni) + rho/2 ...
-                        *(c_Ni - z_Ni.c_Ni)'*(c_Ni - z_Ni.c_Ni)];
+                    - z_Ni.alpha_Ni) + y_Ni.c_Ni'*(c_Ni - z_Ni.c_Ni),...
+                    eTerm_Q >= rho/2*(diag(alpha_Ni) - z_Ni.alpha_Ni)'...
+                    *(diag(alpha_Ni) - z_Ni.alpha_Ni) + rho/2 ...
+                    *(c_Ni - z_Ni.c_Ni)'*(c_Ni - z_Ni.c_Ni)];
        objective_i = objective_i + eTerm_L +  eTerm_Q;  
     
         parameters_in = {z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni, z_Ni.c_Ni, ...
@@ -373,8 +379,8 @@ function [constraints_i, alpha_Ni, c_Ni] = terminalConstraints(constraints_i, pa
      end
      %% Equation 14: Approx of LMI with diagonal dominance
      PiInv = inv(param.Pi{i});
-     constraints_i = [constraints_i, (param.A_Ni{i}+param.Bi{i}*param.K_Ni{i})...
-                       *c_Ni + param.Bi{i}*di- ci(:,i) == bi];
+     constraints_i = [constraints_i, -bi <=(param.A_Ni{i}+param.Bi{i}*param.K_Ni{i})...
+                       *c_Ni + param.Bi{i}*di- ci(:,i) <= bi];
      constraints_i = [constraints_i, alpha_i(i)-sumLambda_ij >= sum(bi(:))];  
      for k= 1:param.ni
             nondiag1 = sum(abs(PiInv(k,:))*alpha_i(i))- abs(PiInv(k,k))*alpha_i(i)+...

@@ -129,6 +129,7 @@ classdef SimFunctionsPnP
             % MPC REGULATION to steady state
             X{1} = horzcat(x0{:});
             clear regulation2ss
+            clear regulation2ss_admm
             n = 1;
             while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 5e-2) || ...
                   any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 5e-2)    
@@ -180,7 +181,7 @@ classdef SimFunctionsPnP
             us = dUs + horzcat(paramAfter.Uref{:});
             disp("Steady-State Xs = "); disp(xs);
             disp("Steady-State Us = "); disp(us);
-            
+            clear regulation2ss_admm
             n = 1;
             while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 1e-1) || ...
                   any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 5e-2)    

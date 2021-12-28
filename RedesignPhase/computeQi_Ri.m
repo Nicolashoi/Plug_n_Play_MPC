@@ -27,7 +27,7 @@ function [Qi, Ri, decVariables] = computeQi_Ri(param, i)
     constraints = [constraints, LMI_i>=0];
 %    
     objective = sum(zDec(neighbors_i));
-    objective = objective -trace(Qi) - trace(Ri);
+    objective = objective -0.1*trace(Qi) - 0.1*trace(Ri);
     ops = sdpsettings('solver', 'MOSEK', 'verbose',0); %options
     diagnostics = optimize(constraints, objective, ops);
     if diagnostics.problem == 1

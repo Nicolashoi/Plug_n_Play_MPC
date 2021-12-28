@@ -1,7 +1,15 @@
 function [u0, alpha, Tk] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
     rho = 0.25;
-    TMAX = 40;
     Tk = 0; k = 2; l=1;
+    centralStopCond = true;
+    TMAX = 10;
+    persistent localOptimizer
+    if isempty(localOptimizer)
+        for i = param.activeDGU
+            localOptimizer{i} = init_optimizer(i, Q_Ni{i}, Ri{i}, N, param,rho);
+        end
+    end
+               
     % Initialization   
     for i=param.activeDGU
         neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
@@ -19,11 +27,11 @@ function [u0, alpha, Tk] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
     end
     
     while(Tk < TMAX)
+        elapsedTime = zeros(1,length(param.activeDGU));
         for i=param.activeDGU % for each subsystems
             % Solve a local optimizati% Loop while terminal terminal time not overrunnedon problem for each subsystem i
-            [w_Ni{i,k}, vi{i,k}, elapsedTime] = local_optim(i,k, x0, Q_Ni, Ri, N,...
-                                                param, z_Ni{i,l}, y_Ni{i,l}, rho);
-            Tk = Tk + elapsedTime;
+            [w_Ni{i,k}, vi{i,k}, elapsedTime(i)] = local_optim(localOptimizer{i}, x0,...
+                                                 z_Ni{i,l}, y_Ni{i,l});
             % Obtain the sorted list of neighbors of system i
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
             for j = neighbors_i' % Update local copy of system i
@@ -34,7 +42,8 @@ function [u0, alpha, Tk] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
                 wi{j,k,i}.alpha_i = extract_alpha_i(1); %array was alpha*dim(ni)
                 wi{j,k,i}.ci = param.Wij{i}{j}*w_Ni{i,k}.c_Ni;
             end
-        end  
+        end 
+        Tk = Tk + max(elapsedTime);
         % Update global copy of each subsystem
         for i = param.activeDGU
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
@@ -62,21 +71,24 @@ function [u0, alpha, Tk] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
        
         % Terminal condition which is centralized (good for having an estimate 
         % of how much time iteration are needed
-        r_norm{k} = 0;
-        s_norm{k} = 0;
-        for i = param.activeDGU
-            r_struct = diff_struct(w_Ni{i,k}, z_Ni{i,k});
-            r_norm{k} = r_norm{k} + sum(vecnorm(r_struct.x_Ni,2));
-            s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
-            s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
-        end
-        if r_norm{k} < 0.75 && s_norm{k} < 0.75
-            break;
+        if centralStopCond
+            r_norm{k} = 0;
+            s_norm{k} = 0;
+            for i = param.activeDGU
+                r_struct = diff_struct(w_Ni{i,k}, z_Ni{i,k});
+                r_norm{k} = r_norm{k} + sum(vecnorm(r_struct.x_Ni,2));
+                s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
+                s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
+            end
+            if r_norm{k} < 0.1 && s_norm{k} < 0.1
+                break;
+            end
         end
         k = k+1;
         l = l+1;
     end
-    fprintf("Time elapsed to converge %d and number of iterations %d \n", Tk, l-1);
+    fprintf(['Max elapsed time for a system to converge %d and '...
+              'max number of iterations %d \n'], Tk, l-1);
     u0 = zeros(1,param.nb_subsystems);
     alpha = zeros(param.nb_subsystems,1);
     c = zeros(param.ni,param.nb_subsystems);
@@ -87,14 +99,11 @@ function [u0, alpha, Tk] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
     end
 end
 
-function [w_Ni, vi, elapsedTime] = local_optim(i,k, x0, Q_Ni, Ri, N, param, z_Ni, y_Ni, rho)
-    persistent localOptimizer
-    if k==2
-        localOptimizer{i} = init_optimizer(x0, i,Q_Ni, Ri, N, param,rho);
-    end
-                                
-    [solutionSet, ~, ~, ~, ~, optimTime] = localOptimizer{i}(z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni, z_Ni.c_Ni, ...
-                     y_Ni.x_Ni, y_Ni.x_eNi, y_Ni.alpha_Ni, y_Ni.c_Ni);
+function [w_Ni, vi, elapsedTime] = local_optim(localOptimizer, x0, z_Ni, y_Ni)
+                   
+    [solutionSet, ~, ~, ~, ~, optimTime] = localOptimizer(x0, z_Ni.x_Ni, z_Ni.x_eNi,...
+                                            z_Ni.alpha_Ni, z_Ni.c_Ni, y_Ni.x_Ni,...
+                                            y_Ni.x_eNi, y_Ni.alpha_Ni, y_Ni.c_Ni);
     w_Ni.x_Ni = solutionSet{4};
     w_Ni.x_eNi = solutionSet{5};
     w_Ni.alpha_Ni = solutionSet{6};
@@ -106,7 +115,7 @@ function [w_Ni, vi, elapsedTime] = local_optim(i,k, x0, Q_Ni, Ri, N, param, z_Ni
 end
 
 
-function localOptimizer = init_optimizer(x0, i, Q_Ni, Ri, N, param, rho)
+function localOptimizer = init_optimizer(i, Q_Ni, Ri, N, param, rho)
     objective_i = 0;
     constraints_i = [];
     ni = param.ni;
@@ -114,7 +123,7 @@ function localOptimizer = init_optimizer(x0, i, Q_Ni, Ri, N, param, rho)
     M = param.nb_subsystems;
     
     n_Ni = size(param.A_Ni{i},2); % size of Neighbors set
-    
+    X0 = sdpvar(param.ni,M,'full'); % state as rows and system number as column
     % variables as input to optimizer object
     z_Ni.x_Ni = sdpvar(n_Ni, N ,'full');   
     z_Ni.x_eNi = sdpvar(n_Ni, 1, 'full');
@@ -158,8 +167,8 @@ function localOptimizer = init_optimizer(x0, i, Q_Ni, Ri, N, param, rho)
     idx_Ni = logical(kron((neighbors_i==i), ones(param.ni,1)));
     
     % Initial condition
-    constraints_i = [constraints_i, Xi(:,1) == x0(:,i)];
-    constraints_i = [constraints_i, X_Ni(:,1) == reshape(x0(:,neighbors_i), [],1)];
+    constraints_i = [constraints_i, Xi(:,1) == X0(:,i)];
+    constraints_i = [constraints_i, X_Ni(:,1) == reshape(X0(:,neighbors_i), [],1)];
     %% Equilibrium constraints
     constraints_i = [constraints_i, Xei == param.A_Ni{i}*X_eNi + ...
                                             param.Bi{i}*Uei];
@@ -176,7 +185,7 @@ function localOptimizer = init_optimizer(x0, i, Q_Ni, Ri, N, param, rho)
         % Distributed Dynamics
         [constraints_i, objective_i] = dynamicsConstraints(constraints_i, objective_i,...
                                        n, i, param, idx_Ni, Xi, X_Ni,Ui, ....
-                                       X_eNi, Uei, Q_Ni{i}, Ri{i});
+                                       X_eNi, Uei, Q_Ni, Ri);
          % Constraints for augmented Lagrangian     
         constraints_i = [constraints_i, eX_Ni_L(n) >= y_Ni.x_Ni(:,n)'*...
                         (X_Ni(:,n)-z_Ni.x_Ni(:,n)), eX_Ni_Q(n) >= rho/2 * ...
@@ -198,9 +207,11 @@ function localOptimizer = init_optimizer(x0, i, Q_Ni, Ri, N, param, rho)
                     (Xi(:,end)-Xei)'*param.Pi{i}*(Xi(:,end)-Xei)+...
                     (Xei - param.Xref{i})'*Si*(Xei - param.Xref{i});
     %----- Terminal set condition (Reconfigurable Terminal Ingredients)--------% 
-    LMI_terminal = [inv(param.Pi{i})*alpha_i(i), Xi(:,end) - ci(:,i);...
-                        Xi(:,end)' - ci(:,i)', alpha_i(i)];
-     constraints_i = [constraints_i, LMI_terminal >= 0];
+%     LMI_terminal = [inv(param.Pi{i})*alpha_i(i), Xi(:,end) - ci(:,i);...
+%                         Xi(:,end)' - ci(:,i)', alpha_i(i)];
+%      constraints_i = [constraints_i, LMI_terminal >= 0];
+     constraints_i = [constraints_i, norm(param.Pi{i}^(1/2)*(Xi(:,end)-ci(:,i)),2) <= alpha_i(i)];
+    constraints_i = [constraints_i, alpha_i(i) >= 0];
     %--------------------------------------------------------------------------%
     % Constraints for augmented Lagrangian are added to objective
     constraints_i = [constraints_i, eTerm_L >= y_Ni.alpha_Ni'*(diag(alpha_Ni) ...
@@ -212,7 +223,7 @@ function localOptimizer = init_optimizer(x0, i, Q_Ni, Ri, N, param, rho)
 
     ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
     % Parameters to give to solver (updated global copy and lagrangians)
-    parameters_in = {z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni, z_Ni.c_Ni, ...
+    parameters_in = {X0, z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni, z_Ni.c_Ni, ...
                      y_Ni.x_Ni, y_Ni.x_eNi,y_Ni.alpha_Ni, y_Ni.c_Ni};
     solutions_out = {Ui, Uei, di, X_Ni, X_eNi, diag(alpha_Ni), c_Ni};
     % Create optimizer object
@@ -261,8 +272,8 @@ function [constraints_i, alpha_Ni, c_Ni] = terminalConstraints(constraints_i, pa
      end
      %% Equation 14: Approx of LMI with diagonal dominance
      PiInv = inv(param.Pi{i});
-     constraints_i = [constraints_i, (param.A_Ni{i}+param.Bi{i}*param.K_Ni{i})...
-                       *c_Ni + param.Bi{i}*di- ci(:,i) == bi];
+     constraints_i = [constraints_i, -bi <= (param.A_Ni{i}+param.Bi{i}*param.K_Ni{i})...
+                       *c_Ni + param.Bi{i}*di- ci(:,i) <= bi];
      constraints_i = [constraints_i, alpha_i(i)-sumLambda_ij >= sum(bi(:))];  
      for k= 1:param.ni
             nondiag1 = sum(abs(PiInv(k,:))*alpha_i(i))- abs(PiInv(k,k))*alpha_i(i)+...

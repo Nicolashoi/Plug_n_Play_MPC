@@ -1,7 +1,15 @@
 function [u0, Xend,Tk] = mpc_delta_admm(x0, alpha, Q_Ni, Ri, N, param)
     rho = 0.25;
-    TMAX = 40;
     Tk = 0; k = 2; l=1;
+    centralStopCond = true;
+    TMAX = 10;
+    persistent localOptimizer
+    if isempty(localOptimizer)
+        for i = param.activeDGU
+            localOptimizer{i} = init_optimizer(i, Q_Ni{i}, Ri{i}, N, param,rho);
+        end
+    end
+   
     % Initialization   
     for i=param.activeDGU
         neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
@@ -13,18 +21,20 @@ function [u0, Xend,Tk] = mpc_delta_admm(x0, alpha, Q_Ni, Ri, N, param)
     end
     
     while(Tk < TMAX)
+        elapsedTime = zeros(1,length(param.activeDGU));
         for i=param.activeDGU % for each subsystems
             % Solve a local optimizati% Loop while terminal terminal time not overrunnedon problem for each subsystem i
-            [w_Ni{i,k}, vi{i,k}, elapsedTime] = local_optim(i,k, x0, Q_Ni, Ri, N,...
-                                                param, z_Ni{i,l}, y_Ni{i,l}, sqrt(alpha(i)), rho);
-            Tk = Tk + elapsedTime;
+            [w_Ni{i,k}, vi{i,k}, elapsedTime(i)] = local_optim(localOptimizer{i}, x0,...
+                                                 z_Ni{i,l}, y_Ni{i,l}, sqrt(alpha(i)));
+      
             % Obtain the sorted list of neighbors of system i
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
             for j = neighbors_i' % Update local copy of system i
                 % estimation of neighbors j by system i
                 wi{j,k,i}.xi = param.Wij{i}{j}*w_Ni{i,k}.x_Ni; 
             end
-        end  
+        end 
+        Tk = Tk + max(elapsedTime);
         % Update global copy of each subsystem
         for i = param.activeDGU
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
@@ -45,21 +55,24 @@ function [u0, Xend,Tk] = mpc_delta_admm(x0, alpha, Q_Ni, Ri, N, param)
        
         % Terminal condition which is centralized (good for having an estimate 
         % of how much time iteration are needed
-        r_norm{k} = 0;
-        s_norm{k} = 0;
-        for i = param.activeDGU
-            r_struct = diff_struct(w_Ni{i,k}, z_Ni{i,k});
-            r_norm{k} = r_norm{k} + sum(vecnorm(r_struct.x_Ni,2));
-            s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
-            s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
-        end
-        if r_norm{k} < 0.1 && s_norm{k} < 0.1
-            break;
+        if centralStopCond
+            r_norm{k} = 0;
+            s_norm{k} = 0;
+            for i = param.activeDGU
+                r_struct = diff_struct(w_Ni{i,k}, z_Ni{i,k});
+                r_norm{k} = r_norm{k} + sum(vecnorm(r_struct.x_Ni,2));
+                s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
+                s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
+            end
+            if r_norm{k} < 0.1 && s_norm{k} < 0.1
+                break;
+            end
         end
         k = k+1;
         l = l+1;
     end
-    fprintf("Time elapsed to converge %d and number of iterations %d \n", Tk, l-1);
+    fprintf(['Max elapsed time for a system to converge %d and '...
+              'max number of iterations %d \n'], Tk, l-1);
     u0 = zeros(1,param.nb_subsystems);
     Xend = zeros(param.ni, param.nb_subsystems);
     for i=param.activeDGU
@@ -68,14 +81,10 @@ function [u0, Xend,Tk] = mpc_delta_admm(x0, alpha, Q_Ni, Ri, N, param)
     end
 end
 
-function [w_Ni, vi, elapsedTime] = local_optim(i,k, x0, Q_Ni, Ri, N, param, z_Ni,...
-                                               y_Ni, alpha_i, rho)
-    persistent localOptimizer
-    if k==2
-        localOptimizer{i} = init_optimizer(x0, i,Q_Ni, Ri, N, param,rho);
-    end
-                                
-    [solutionSet, ~, ~, ~, ~, optimTime] = localOptimizer{i}(z_Ni.x_Ni, y_Ni.x_Ni,...
+function [w_Ni, vi, elapsedTime] = local_optim(localOptimizer, x0,z_Ni,...
+                                               y_Ni, alpha_i)
+                        
+    [solutionSet, ~, ~, ~, ~, optimTime] = localOptimizer(x0, z_Ni.x_Ni, y_Ni.x_Ni,...
                                                              alpha_i);
     w_Ni.x_Ni = solutionSet{2};
     vi.ui = solutionSet{1}; 
@@ -83,13 +92,13 @@ function [w_Ni, vi, elapsedTime] = local_optim(i,k, x0, Q_Ni, Ri, N, param, z_Ni
 end
 
 
-function localOptimizer = init_optimizer(x0, i, Q_Ni, Ri, N, param, rho)
+function localOptimizer = init_optimizer(i, Q_Ni, Ri, N, param, rho)
     objective_i = 0;
     constraints_i = [];
     ni = param.ni;
     nu = param.nu;
     M = param.nb_subsystems;
-    
+    X0 = sdpvar(param.ni,M,'full'); % state as rows and system number as column
     n_Ni = size(param.A_Ni{i},2); % size of Neighbors set
     
     % variables as input to optimizer object
@@ -114,15 +123,15 @@ function localOptimizer = init_optimizer(x0, i, Q_Ni, Ri, N, param, rho)
     idx_Ni = logical(kron((neighbors_i==i), ones(param.ni,1)));
     
     % Initial condition
-    constraints_i = [constraints_i, Xi(:,1) == x0(:,i)];
-    constraints_i = [constraints_i, X_Ni(:,1) == reshape(x0(:,neighbors_i), [],1)];
+    constraints_i = [constraints_i, Xi(:,1) == X0(:,i)];
+    constraints_i = [constraints_i, X_Ni(:,1) == reshape(X0(:,neighbors_i), [],1)];
    
     %% Planning Horizon Loop
     for n = 1:N-1 
         % Distributed Dynamics
         [constraints_i, objective_i] = dynamicsConstraints(constraints_i, objective_i,...
                                        n, i, param, idx_Ni, Xi, X_Ni,Ui, ....
-                                       Q_Ni{i}, Ri{i});
+                                       Q_Ni, Ri);
          % Constraints for augmented Lagrangian     
         constraints_i = [constraints_i, eX_Ni_L(n) >= y_Ni.x_Ni(:,n)'*...
                         (X_Ni(:,n)-z_Ni.x_Ni(:,n)), eX_Ni_Q(n) >= rho/2 * ...
@@ -147,7 +156,7 @@ function localOptimizer = init_optimizer(x0, i, Q_Ni, Ri, N, param, rho)
    
     ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
     % Parameters to give to solver (updated global copy and lagrangians)
-    parameters_in = {z_Ni.x_Ni, y_Ni.x_Ni, alpha_i};
+    parameters_in = {X0, z_Ni.x_Ni, y_Ni.x_Ni, alpha_i};
     solutions_out = {Ui, X_Ni};
     % Create optimizer object
     localOptimizer = optimizer(constraints_i,objective_i,ops,parameters_in,solutions_out);

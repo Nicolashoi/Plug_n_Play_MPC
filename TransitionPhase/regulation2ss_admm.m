@@ -1,7 +1,15 @@
 function u0 = regulation2ss_admm(x0, N, param, xs, us, Qi, Ri)
     rho = 0.25;
-    TMAX = 40;
+    TMAX = 1;
     Tk = 0; k = 2; l=1;
+    centralStopCond = true;
+    persistent localOptimizer
+    if isempty(localOptimizer)
+        for i= param.activeDGU
+            localOptimizer{i} = init_optimizer(xs(:,i), us(:,i), i, N, Qi{i}, Ri{i},...
+                                               param, rho);
+        end
+    end
     for i=param.activeDGU
         neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
         z_Ni{i,1}.x_Ni = zeros(length(neighbors_i)*param.ni,N);
@@ -10,8 +18,8 @@ function u0 = regulation2ss_admm(x0, N, param, xs, us, Qi, Ri)
     while(Tk < TMAX)
         for i=param.activeDGU % loop over all subsystems
            
-            [w_Ni{i,k}, vi{i,k}, elapsedTime] = local_optim(i, x0, xs(:,i), us(:,i),...
-                             Qi{i}, Ri{i}, N, param, z_Ni{i,l}, y_Ni{i,l}, rho, k);
+            [w_Ni{i,k}, vi{i,k}, elapsedTime] = local_optim(localOptimizer{i}, x0,...
+                                                z_Ni{i,l}, y_Ni{i,l});
             Tk = Tk + elapsedTime;
             % obtain sorted list of neighbors of system i
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
@@ -39,16 +47,18 @@ function u0 = regulation2ss_admm(x0, N, param, xs, us, Qi, Ri)
         end
         % Terminal condition which is centralized (good for having an estimate 
         % of how much time iteration are needed
-        r_norm{k} = 0;
-        s_norm{k} = 0;
-        for i = param.activeDGU
-            r_struct = diff_struct(w_Ni{i,k}, z_Ni{i,k});
-            r_norm{k} = r_norm{k} + sum(vecnorm(r_struct.x_Ni,2));
-            s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
-            s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
-        end
-        if r_norm{k} < 0.3 && s_norm{k} < 0.3
-            break;
+        if centralStopCond
+            r_norm{k} = 0;
+            s_norm{k} = 0;
+            for i = param.activeDGU
+                r_struct = diff_struct(w_Ni{i,k}, z_Ni{i,k});
+                r_norm{k} = r_norm{k} + sum(vecnorm(r_struct.x_Ni,2));
+                s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
+                s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
+            end
+            if r_norm{k} < 0.3 && s_norm{k} < 0.3
+                break;
+            end
         end
         k = k+1;
         l = l+1;
@@ -60,12 +70,9 @@ function u0 = regulation2ss_admm(x0, N, param, xs, us, Qi, Ri)
     end
 end
 
-function [w_Ni, vi, elapsedTime] = local_optim(i, x0, xs_i, us_i, Qi, Ri, N, param, z_Ni, y_Ni, rho, k)
-    persistent localOptimizer
-    if k==2
-        localOptimizer{i} = init_optimizer(xs_i, us_i, i, N,Qi,Ri, param, rho);
-    end
-    [solutionSet, ~, ~, ~, ~, optimTime] = localOptimizer{i}(x0, z_Ni.x_Ni, y_Ni.x_Ni);
+function [w_Ni, vi, elapsedTime] = local_optim(localOptimizer, x0, z_Ni, y_Ni)
+   
+    [solutionSet, ~, ~, ~, ~, optimTime] = localOptimizer(x0, z_Ni.x_Ni, y_Ni.x_Ni);
     w_Ni.x_Ni = solutionSet{1};
     vi.ui = solutionSet{2};
     elapsedTime= optimTime.solvertime;

@@ -101,46 +101,46 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
 %         constraints = [constraints, LMI>=0];    
         
         %% Equation 14: Approx of LMI with diagonal dominance
-%         PiInv = inv(param.Pi{i});
-%         constraints = [constraints, (param.A_Ni{i}+param.Bi{i}*param.K_Ni{i})...
-%                        *c_Ni{i} + param.Bi{i}*di(:,i) - ci(:,i) == bi(:,i)];
-%         constraints = [constraints, alpha(i)-sumLambda_ij >= sum(bi(:,i))];    
-%         for k= 1:ni
-%             nondiag1 = sum(abs(PiInv(k,:))*alpha(i))- abs(PiInv(k,k))*alpha(i)+...
-%                        sum(abs(param.A_Ni{i}(k,:)+ param.Bi{i}(k)*param.K_Ni{i}(:))*alpha_Ni{i})...
-%                        + bi(k,i);
-%             constraints = [constraints, PiInv(k,k)*alpha(i) >= nondiag1];       
-%         end
-%         for k=1:n_Ni
-%             nondiag2 = sum(AbsSumLambdaP_ij(k,:)) - AbsSumLambdaP_ij(k,k) + ...
-%                        sum(abs(param.A_Ni{i}(:,k)+ param.Bi{i}(:)*param.K_Ni{i}(k))*alpha(i));
-%             constraints = [constraints, sumLambdaP_ij(k,k) >= nondiag2];
-%         end
+        PiInv = inv(param.Pi{i});
+        constraints = [constraints, -bi(:,i) <= (param.A_Ni{i}+param.Bi{i}*param.K_Ni{i})...
+                       *c_Ni{i} + param.Bi{i}*di(:,i) - ci(:,i) <= bi(:,i)];
+        constraints = [constraints, alpha(i)-sumLambda_ij >= sum(bi(:,i))];    
+        for k= 1:ni
+            nondiag1 = sum(abs(PiInv(k,:))*alpha(i))- abs(PiInv(k,k))*alpha(i)+...
+                       sum(abs(param.A_Ni{i}(k,:)+ param.Bi{i}(k)*param.K_Ni{i}(:))*alpha_Ni{i})...
+                       + bi(k,i);
+            constraints = [constraints, PiInv(k,k)*alpha(i) >= nondiag1];       
+        end
+        for k=1:n_Ni
+            nondiag2 = sum(AbsSumLambdaP_ij(k,:)) - AbsSumLambdaP_ij(k,k) + ...
+                       sum(abs(param.A_Ni{i}(:,k)+ param.Bi{i}(:)*param.K_Ni{i}(k))*alpha(i));
+            constraints = [constraints, sumLambdaP_ij(k,k) >= nondiag2];
+        end
         %% Equation 11
-%         for k=1:size(param.Gx_Ni{i},1) 
-%             sum_GxNorm2 = 0;
-%             for j=1:length(neighbors_i)
-%                 sum_GxNorm2 = sum_GxNorm2 + norm(param.Gx_Ni{i}(k,:)*...
-%                              (param.Wij{i}{neighbors_i(j)})'*...
-%                               param.Pi{neighbors_i(j)}^(-1/2),2) * alpha(neighbors_i(j));
-%                 
-%             end
-%             constraints = [constraints, param.Gx_Ni{i}(k,:)*c_Ni{i} + sum_GxNorm2 ...
-%                             <= param.fx_Ni{i}(k)];    
-%         end
+        for k=1:size(param.Gx_Ni{i},1) 
+            sum_GxNorm2 = 0;
+            for j=1:length(neighbors_i)
+                sum_GxNorm2 = sum_GxNorm2 + norm(param.Gx_Ni{i}(k,:)*...
+                             (param.Wij{i}{neighbors_i(j)})'*...
+                              param.Pi{neighbors_i(j)}^(-1/2),2) * alpha(neighbors_i(j));
+                
+            end
+            constraints = [constraints, param.Gx_Ni{i}(k,:)*c_Ni{i} + sum_GxNorm2 ...
+                            <= param.fx_Ni{i}(k)];    
+        end
         %% Equation 12
-%         for k=1:size(param.Gu_i{i},1) 
-%             sum_GuNorm2 = 0;
-%             for j=1:length(neighbors_i)
-%                 sum_GuNorm2 = sum_GuNorm2 + norm(param.Gu_i{i}(k,:)*param.K_Ni{i}*...
-%                              (param.Wij{i}{neighbors_i(j)})'*...
-%                               param.Pi{neighbors_i(j)}^(-1/2),2) * alpha(neighbors_i(j));
-%                 
-%             end
-%             constraints = [constraints, param.Gu_i{i}(k,:)*param.K_Ni{i}*c_Ni{i} + ...
-%                            param.Gu_i{i}(k,:)*di(:,i) + sum_GuNorm2...
-%                            <= param.fu_i{i}(k)];    
-%         end
+        for k=1:size(param.Gu_i{i},1) 
+            sum_GuNorm2 = 0;
+            for j=1:length(neighbors_i)
+                sum_GuNorm2 = sum_GuNorm2 + norm(param.Gu_i{i}(k,:)*param.K_Ni{i}*...
+                             (param.Wij{i}{neighbors_i(j)})'*...
+                              param.Pi{neighbors_i(j)}^(-1/2),2) * alpha(neighbors_i(j));
+                
+            end
+            constraints = [constraints, param.Gu_i{i}(k,:)*param.K_Ni{i}*c_Ni{i} + ...
+                           param.Gu_i{i}(k,:)*di(:,i) + sum_GuNorm2...
+                           <= param.fu_i{i}(k)];    
+        end
         
         %% Planning Horizon Loop
         for n = 1:N-1 
@@ -172,15 +172,27 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
                     (Xe(:,i) - param.Xref{i})'*S{i}*(Xe(:,i) - param.Xref{i});
                         
         %%  Terminal Set condition
-%         constraints = [constraints, (X{N}(:,i)-ci(:,i))'*param.Pi{i}*(X{N}(:,i)-ci(:,i))...
-%                                     <= 2];   
-        LMI_terminal = [inv(param.Pi{i})*alpha(i), X{end}(:,i) - ci(:,i);...
-                        X{end}(:,i)' - ci(:,i)', alpha(i)];
-         constraints = [constraints, LMI_terminal >= 0];
-         
+        %constraints = [constraints, (X{N}(:,i)-ci(:,i))'*param.Pi{i}*(X{N}(:,i)-ci(:,i)) <= alpha(i)^2];   
+%          LMI_terminal = [inv(param.Pi{i})*alpha(i), X{end}(:,i) - ci(:,i);...
+%                         X{end}(:,i)' - ci(:,i)', alpha(i)];
+%          constraints = [constraints, LMI_terminal >= 0];
+      %  bound = sdpvar(param.ni,1, 'full');
+%         constraints = [constraints, param.Pi{i}(1,1)*alpha(i) >= abs(param.Pi{i}(1,2)*alpha(i)) + ...
+%                        bound(1)];
+%        constraints = [constraints, param.Pi{i}(2,2)*alpha(i) >= abs(param.Pi{i}(2,1)*alpha(i)) + ...
+%                        bound(2)];
+                   
+%        constraints = [constraints, PiInv(1,1)*alpha(i) >= abs(PiInv(1,2)*alpha(i)) + ...
+%                        bound(1)];
+%        constraints = [constraints, PiInv(2,2)*alpha(i) >= abs(PiInv(2,1)*alpha(i)) + ...
+%                        bound(2)];
+%        constraints = [constraints, alpha(i) >= sum(bound), -bound <= (X{end}(:,i) - ci(:,i)) <= bound];
+        
+        constraints = [constraints, norm(param.Pi{i}^(1/2)*(X{N}(:,i)-ci(:,i)),2) <= alpha(i)];
+        constraints = [constraints, alpha(i) >= 0];% X{N}(:,i) == ci(:,i)];
     end        
     %% Create optimizer object 
-    ops = sdpsettings('solver', 'MOSEK', 'verbose',2); %options
+    ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
     parameters_in = {X0};
     %solutions_out = {[U{:}], [X_eNi{1}], [X_eNi{2}], [X_eNi{3}], di, Ue}; % general form 
     solutions_out = {U{1}, alpha, ci, X{end}}; % get U0 for each subsystem, size nu x M
