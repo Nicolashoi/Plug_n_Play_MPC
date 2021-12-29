@@ -80,7 +80,7 @@ function [u0, alpha, Tk] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
                 s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
                 s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
             end
-            if r_norm{k} < 0.1 && s_norm{k} < 0.1
+            if r_norm{k} < 0.05 && s_norm{k} < 0.05
                 break;
             end
         end

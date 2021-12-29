@@ -67,10 +67,11 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
         objective = objective + X{end}(:,i)'*param.Pi{i}*X{end}(:,i);
 %         constraints = [constraints, X{end}(:,i)'*param.Pi{i}*X{end}(:,i)...
 %                                   <= alpha_var(i)];
- 
-        LMI_terminalSet = [inv(param.Pi{i})*alpha_var(i), X{end}(:,i);...
-                        X{end}(:,i)', alpha_var(i)];
-        constraints = [constraints, LMI_terminalSet >= 0];
+        constraints = [constraints, norm(param.Pi{i}^(1/2)*X{end}(:,i),2) <=...
+                        alpha_var(i)];
+%         LMI_terminalSet = [inv(param.Pi{i})*alpha_var(i), X{end}(:,i);...
+%                         X{end}(:,i)', alpha_var(i)];
+%         constraints = [constraints, LMI_terminalSet >= 0];
     end    
     % parameter for initial condition
 %     constraints = [constraints, X{1} == X0];

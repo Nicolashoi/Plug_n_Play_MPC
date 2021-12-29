@@ -1,9 +1,10 @@
 
-function [xs, us] = transition_compute_delta_ss_admm(x0, N, paramBefore, ...
+function [xs, us, Tk] = transition_compute_delta_ss_admm(x0, N, paramBefore, ...
                                                            paramAfter, target, alpha)
     rho = 0.25;
-    TMAX = 100;
+    TMAX = 10;
     Tk = 0; k = 2; l=1;
+    centralStopCond = true;
     % all the DGU concerned i.e. M U P (actual network + DGU's to be plugged in
     % or out
     unionDGU = union(paramBefore.activeDGU,paramAfter.activeDGU);
@@ -25,10 +26,11 @@ function [xs, us] = transition_compute_delta_ss_admm(x0, N, paramBefore, ...
     end
     % Loop while terminal terminal time not overrunned
     while(Tk < TMAX)
+        elapsedTime = zeros(1,length(unionDGU));
         for i = unionDGU % loop over all subsystems
-            [w_Ni{i,k}, vi{i,k}, elapsedTime] = local_optim(i,k, x0, N, paramBefore, paramAfter,...
+            [w_Ni{i,k}, vi{i,k}, elapsedTime(i)] = local_optim(i,k, x0, N, paramBefore, paramAfter,...
                                  z_Ni{i,l}, y_Ni{i,l}, sqrt(alpha(i)), rho, target);
-            Tk = Tk + elapsedTime; 
+            
             % Obtain the sorted list of neighbors of system i: this list will be
             % used to update the local copies of each decision variable. The
             % intersection of the DGU neighbors connected before and after PnP
@@ -56,7 +58,8 @@ function [xs, us] = transition_compute_delta_ss_admm(x0, N, paramBefore, ...
                 end     
                 wi{j,k,i}.xei = paramBefore.Wij{i}{j}*w_Ni{i,k}.x_eNi;
             end
-        end  
+        end 
+        Tk = Tk + max(elapsedTime); 
         %% Update global copy of each subsystem
         for i = unionDGU
             % Again do the average estimate over the smallest subset (either
@@ -91,19 +94,21 @@ function [xs, us] = transition_compute_delta_ss_admm(x0, N, paramBefore, ...
         end
         %% Terminal condition which is centralized (good for having an estimate 
         % of how much time iteration are needed
-        r_norm{k} = 0;
-        s_norm{k} = 0;
-        for i = unionDGU
-            r_struct = diff_struct(w_Ni{i,k}, z_Ni{i,k});
-            r_norm{k} = r_norm{k} + sum(vecnorm(r_struct.x_Ni,2));
-            s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
-            s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
+        if centralStopCond
+            r_norm{k} = 0;
+            s_norm{k} = 0;
+            for i = unionDGU
+                r_struct = diff_struct(w_Ni{i,k}, z_Ni{i,k});
+                r_norm{k} = r_norm{k} + sum(vecnorm(r_struct.x_Ni,2));
+                s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
+                s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
+            end
+            if r_norm{k} < 0.025 && s_norm{k} < 0.025
+                break;
+            end
         end
-        if r_norm{k} < 0.025 && s_norm{k} < 0.025
-            break;
-        end
-        fprintf("Iteration %d,  Time elapsed for each iteration %d \n", l, ...
-                 elapsedTime);
+        fprintf("Iteration %d, Max time elapsed by a system for iteration %d \n", l, ...
+                 max(elapsedTime));
         k = k+1;
         l = l+1;
        
@@ -254,13 +259,11 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter,alpha_
         constraints_i = dynamicsConstraintsAfterPnP(constraints_i, ...
                                         objective_i, N, i, paramAfter, Xi, X_Ni_mod,...
                                         Ui, y_Ni, z_Ni, eX_Ni_mod_L,eX_Ni_mod_Q,rho);
-    
-       % Terminal Set constraints
-        LMI_terminal = [inv(paramAfter.Pi{i})*alpha_i, Xi(:,end);...
-                        Xi(:,end)', alpha_i];
-        constraints_i = [constraints_i, LMI_terminal >= 0];
-%         constraints_i = [constraints_i, Xi(:,end)'*paramAfter.Pi{i}*Xi(:,end)...
-%                                    <= alpha_i];          
+  
+    %----- Terminal set condition (already alpha^1/2 passed as argument) --------% 
+    % Mosek does not support sqrt(alpha) as parameter for the constraint ------%
+   constraints_i = [constraints_i, norm(paramAfter.Pi{i}^(1/2)*Xi(:,end),2) <= alpha_i];
+     
     solutions_out = {Ui, Uei, X_Ni, X_eNi, X_Ni_mod};
     else
         solutions_out = {Ui, Uei, X_Ni, X_eNi};

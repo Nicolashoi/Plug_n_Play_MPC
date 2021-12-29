@@ -95,7 +95,7 @@ function [constraints, objective] = define_constraints(objective, Q_Ni, Ri, para
         % LMI 26 of the paper
         LMI_2 = LMI_2 + param.W{i}'*H_Ni{i}*param.W{i};
         % objective
-        objective = objective + %trace(H_Ni{i}); minimize -trace Ei
+        objective = objective - trace(H_Ni{i});
     end
     constraints = [constraints, LMI_2 <= 0];
 end

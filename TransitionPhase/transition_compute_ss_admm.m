@@ -1,5 +1,5 @@
 
-function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
+function [xs, us, alpha, Tk] = transition_compute_ss_admm(x0, N, paramBefore, ...
                                                            paramAfter, target)
     rho = 0.25;
     TMAX = 3;
@@ -30,7 +30,7 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
     end
     % Loop while terminal terminal time not overrunned
     while(Tk < TMAX)
-        elapsedTime = zeros(1,length(param.activeDGU));
+        elapsedTime = zeros(1,length(unionDGU));
         for i = unionDGU % loop over all subsystems
             [w_Ni{i,k}, vi{i,k}, elapsedTime(i)] = local_optim(i,k, x0, N, paramBefore, paramAfter,...
                                  z_Ni{i,l}, y_Ni{i,l}, rho, target);
@@ -117,11 +117,12 @@ function [xs, us, alpha] = transition_compute_ss_admm(x0, N, paramBefore, ...
                 s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
                 s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
             end
-            if r_norm{k} < 0.1 && s_norm{k} < 0.1
+            if r_norm{k} < 0.01 && s_norm{k} < 0.01
                 break;
             end
         end
-        fprintf("Iteration %d,  Max system time elapsed for each ADMM iteration is %d \n", l, Tk);
+        fprintf("Iteration %d,  Max system time elapsed for each ADMM iteration is %d \n", ...
+                l, max(elapsedTime));
         k = k+1;
         l = l+1;
        

@@ -1,7 +1,7 @@
 classdef SimFunctionsPnP
     methods (Static)
         %% ------------------ COMPUTE PASSIVE GAINS ---------------------------%
-        function obj = setPassiveControllers(obj)
+        function [obj, lambda] = setPassiveControllers(obj)
             for i= obj.activeDGU
                 [obj.Ki{i}, Di, obj.Pi{i}, Gamma_i] = controller_passivity(...
                                              obj.Ai{i}, obj.Bi{i},...
@@ -11,8 +11,9 @@ classdef SimFunctionsPnP
                 disp(obj.Ki{i});
                 sprintf("P%d", i)
                 disp(obj.Pi{i});
+                lambda = min(eig(Gamma_i));
                 fprintf("minimum eigenvalue of dissipation rate %.2d \n", ...
-                        min(eig(Gamma_i)));
+                        lambda);
                
             end
             for i= obj.activeDGU
@@ -77,7 +78,7 @@ classdef SimFunctionsPnP
         end
         %% ------------------------ P&P OPERATIONS------------------------------
         %-------------------------- REDESIGN PHASE-----------------------------%       
-        function obj = redesignPhase(obj, oldGraph, idxDGU, procedure)
+        function [obj, Qi, Ri, Q_Ni] = redesignPhase(obj, oldGraph, idxDGU, procedure, QiOld, RiOld)
             if procedure == "add"
                 out_neighbors = sort([idxDGU; neighbors(oldGraph, idxDGU)]);  
             elseif procedure == "delete"
@@ -85,7 +86,8 @@ classdef SimFunctionsPnP
             else
                 error("procedure not well defined: add or delete");
             end
-             for k = 1:length(out_neighbors)
+            Qi = QiOld; Ri = RiOld;
+            for k = 1:length(out_neighbors)
                  i = out_neighbors(k);
                  [obj.Ki{i}, Di, obj.Pi{i}, Gamma_i] = controller_passivity(...
                                                  obj.Ai{i}, obj.Bi{i},...
@@ -97,24 +99,41 @@ classdef SimFunctionsPnP
                 disp(obj.Pi{i});
                 fprintf("minimum eigenvalue of dissipation rate %.2d \n", ...
                         min(eig(Gamma_i)));
-             end 
-             for i= obj.activeDGU % recompute neighbors passive gains
+            end
+            for i= obj.activeDGU % recompute neighbors passive gains
                 out_neighbors = sort([i; neighbors(obj.NetGraph, i)]); 
                 K_block = blkdiag(obj.Ki{out_neighbors}); %block matrix of all neighbors K
                 obj.K_Ni{i} = K_block(out_neighbors==i,:); % extract only row corresponding to subsystem i
+             end
+             
+             for k = 1:length(out_neighbors)
+                % Compute associated Qi and RI matrices
+                [Qi{i}, Ri{i}, decVariables{i}] = computeQi_Ri(obj, i);
+                decVarSum = sum(cell2mat(decVariables),2);
+                if all(decVarSum <= 1)
+                        fprintf(['Qi and Ri found to guarantee asympt. stability '...
+                                 'of the global system \n']);
+                else
+                        fprintf(['WARNING: no Qi and Ri found such that asympt. stability '...
+                                 'of the global system is guaranteed \n']);
+                end
+             end 
+             for i= obj.activeDGU % recompute neighbors passive gains
+                 neighbors_i = sort([i; neighbors(obj.NetGraph, i)]); 
+                 Q_Ni{i} = blkdiag(Qi{neighbors_i});
              end
         end
         
     
         %-----------------------TRANSITION PHASE-------------------------------%
         %- Transition Phase using Online reconfigurable terminal ingredients -%
-        function [X, U, lenSim, xs, us, alpha] = transitionPhase(x0, paramBefore,...
-                                                         paramAfter, Qi, Ri, target, ADMM)
+        function [X, U, lenSim, xs, us, alpha, SolverTime] = transitionPhase(x0, paramBefore,...
+                                                         paramAfter, Qi, Ri, target, ADMM, regulation)
             N = 5; %Horizon 
             % compute steady state
             if ADMM
                 disp("Using ADMM !");
-                [xs, us, alpha] = transition_compute_ss_admm(horzcat(x0{:}), N, paramBefore,...
+                [xs, us, alpha, SolverTime] = transition_compute_ss_admm(horzcat(x0{:}), N, paramBefore,...
                                     paramAfter, target);
             elseif ~ADMM
                 disp("Not using ADMM !");
@@ -128,54 +147,58 @@ classdef SimFunctionsPnP
             disp("Steady-State Us = "); disp(us);
             % MPC REGULATION to steady state
             X{1} = horzcat(x0{:});
+            U{1} = 0; lenSim = 0;
             clear regulation2ss
             clear regulation2ss_admm
             n = 1;
-            while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 5e-2) || ...
-                  any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 5e-2)    
-                    % control input is of size nu x M 
-                    if ADMM
-                        U{n} = regulation2ss_admm(X{n}, N, paramBefore, xs, us, Qi, Ri); % get first control input
-                    else
-                        U{n} = regulation2ss(X{n}, N, paramBefore, xs, us, Qi, Ri); % get first control input
-                    end
-                    if isnan(U{n})
-                        error("Input to apply to controller is Nan at iteration %d",n);
-                    end
-                    for i=paramBefore.activeDGU % Only modify the activated DGU
-                        neighbors_i = [i; neighbors(paramBefore.NetGraph, i)]; % get neighbors
-                        neighbors_i = sort(neighbors_i); % sorted neighbor list
-                        % create neighbor state vector comprising the state of subsystem i
-                        % and the state of it's neighbors (concatenated)
-                        x_Ni = reshape(X{n}(:,neighbors_i),[],1); 
-                        X{n+1}(:, i) = paramBefore.A_Ni{i}*x_Ni + paramBefore.Bi{i}*U{n}(:,i);
-                    end
-                    fprintf("Regulation to steady-state: iteration %d \n", n);
-                    n = n+1;
-            end  
-            lenSim = n;
-            if lenSim == 1 % if already at steady state
-                U{n} = us;
-            end
-            for i=1:paramBefore.nb_subsystems
-                if ~any(i == paramBefore.activeDGU(:))
-                    X{1}(:,i) = [NaN;NaN];
-                    for n = 1:lenSim
-                        X{n+1}(:,i) = [NaN;NaN];
-                        U{n}(:,i) = NaN;
-                    end
+            if regulation
+                while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 5e-2) || ...
+                      any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 5e-2)    
+                        % control input is of size nu x M 
+                        if ADMM
+                            U{n} = regulation2ss_admm(X{n}, N, paramBefore, xs, us, Qi, Ri); % get first control input
+                        else
+                            U{n} = regulation2ss(X{n}, N, paramBefore, xs, us, Qi, Ri); % get first control input
+                        end
+                        if isnan(U{n})
+                            error("Input to apply to controller is Nan at iteration %d",n);
+                        end
+                        for i=paramBefore.activeDGU % Only modify the activated DGU
+                            neighbors_i = [i; neighbors(paramBefore.NetGraph, i)]; % get neighbors
+                            neighbors_i = sort(neighbors_i); % sorted neighbor list
+                            % create neighbor state vector comprising the state of subsystem i
+                            % and the state of it's neighbors (concatenated)
+                            x_Ni = reshape(X{n}(:,neighbors_i),[],1); 
+                            X{n+1}(:, i) = paramBefore.A_Ni{i}*x_Ni + paramBefore.Bi{i}*U{n}(:,i);
+                        end
+                        fprintf("Regulation to steady-state: iteration %d \n", n);
+                        n = n+1;
+                end  
+                lenSim = n;
+                if lenSim == 1 % if already at steady state
+                    U{n} = us;
                 end
-            end                                   
+                for i=1:paramBefore.nb_subsystems
+                    if ~any(i == paramBefore.activeDGU(:))
+                        X{1}(:,i) = [NaN;NaN];
+                        for n = 1:lenSim
+                            X{n+1}(:,i) = [NaN;NaN];
+                            U{n}(:,i) = NaN;
+                        end
+                    end
+                end                                   
+            end
         end
         
         %- Transition Phase using offline reconfigurable terminal ingredients -%
         %- Delta formulation required 
-        function [X, U, lenSim, xs, us] = transitionPhaseDeltaADMM(x0, paramBefore,...
-                                                         paramAfter, Qi, Ri, target, alpha)
+        function [X, U, lenSim, xs, us, SolverTime] = transitionPhaseDeltaADMM(x0, paramBefore,...
+                                                         paramAfter, Qi, Ri, target, alpha, regulation)
             N = 5; %Horizon  
             X{1} = horzcat(x0{:});
+            U{1} = 0; lenSim = 0;
             dX{1} = X{1}-horzcat(paramAfter.Xref{:});
-            [dXs, dUs] = transition_compute_delta_ss_admm(dX{1}, N, paramBefore,...
+            [dXs, dUs, SolverTime] = transition_compute_delta_ss_admm(dX{1}, N, paramBefore,...
                                         paramAfter, target, alpha);
             xs = dXs + horzcat(paramAfter.Xref{:}); % reference for system after PnP
             us = dUs + horzcat(paramAfter.Uref{:});
@@ -183,36 +206,38 @@ classdef SimFunctionsPnP
             disp("Steady-State Us = "); disp(us);
             clear regulation2ss_admm
             n = 1;
-            while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 1e-1) || ...
-                  any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 5e-2)    
-                    % control input is of size nu x M 
-                   
-                    dU{n} = regulation2ss_admm(dX{n}, N, paramBefore, dXs, dUs, Qi, Ri); % get first control input
-                    U{n} = dU{n} + horzcat(paramAfter.Uref{:});
-                    if isnan(U{n})
-                        error("Input to apply to controller is Nan at iteration %d",n);
-                    end
-                    for i=paramBefore.activeDGU % Only modify the activated DGU to reach s-s
-                        neighbors_i = sort([i; neighbors(paramBefore.NetGraph, i)]); % get neighbors
-                        % create neighbor state vector comprising the state of subsystem i
-                        % and the state of it's neighbors (concatenated)
-                        x_Ni = reshape(dX{n}(:,neighbors_i),[],1); 
-                        dX{n+1}(:, i) = paramBefore.A_Ni{i}*x_Ni + paramBefore.Bi{i}*dU{n}(:,i);
-                        X{n+1}(:,i) = dX{n+1}(:,i) + paramAfter.Xref{i};
-                    end   
-                    fprintf("Regulation to steady-state: iteration %d \n", n);
-                    n = n+1;         
-            end  
-            lenSim = n;
-            if lenSim == 1 % if already at steady state
-                U{n} = us;
-            end
-            for i=1:paramBefore.nb_subsystems
-                if ~any(i == paramBefore.activeDGU(:))
-                    X{1}(:,i) = [NaN;NaN];
-                    for n = 1:lenSim
-                        X{n+1}(:,i) = [NaN;NaN];
-                        U{n}(:,i) = NaN;
+            if regulation
+                while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 1e-1) || ...
+                      any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 5e-2)    
+                        % control input is of size nu x M 
+
+                        dU{n} = regulation2ss_admm(dX{n}, N, paramBefore, dXs, dUs, Qi, Ri); % get first control input
+                        U{n} = dU{n} + horzcat(paramAfter.Uref{:});
+                        if isnan(U{n})
+                            error("Input to apply to controller is Nan at iteration %d",n);
+                        end
+                        for i=paramBefore.activeDGU % Only modify the activated DGU to reach s-s
+                            neighbors_i = sort([i; neighbors(paramBefore.NetGraph, i)]); % get neighbors
+                            % create neighbor state vector comprising the state of subsystem i
+                            % and the state of it's neighbors (concatenated)
+                            x_Ni = reshape(dX{n}(:,neighbors_i),[],1); 
+                            dX{n+1}(:, i) = paramBefore.A_Ni{i}*x_Ni + paramBefore.Bi{i}*dU{n}(:,i);
+                            X{n+1}(:,i) = dX{n+1}(:,i) + paramAfter.Xref{i};
+                        end   
+                        fprintf("Regulation to steady-state: iteration %d \n", n);
+                        n = n+1;         
+                end  
+                lenSim = n;
+                if lenSim == 1 % if already at steady state
+                    U{n} = us;
+                end
+                for i=1:paramBefore.nb_subsystems
+                    if ~any(i == paramBefore.activeDGU(:))
+                        X{1}(:,i) = [NaN;NaN];
+                        for n = 1:lenSim
+                            X{n+1}(:,i) = [NaN;NaN];
+                            U{n}(:,i) = NaN;
+                        end
                     end
                 end
             end

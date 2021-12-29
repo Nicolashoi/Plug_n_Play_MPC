@@ -148,10 +148,9 @@ function localOptimizer = init_optimizer(i, Q_Ni, Ri, N, param, rho)
     % Add cost if we deviate from equilibrium state and if equilibrium state
     % deviates from the reference
      objective_i = objective_i + Xi(:,end)'*param.Pi{i}*Xi(:,end);
-    %----- Terminal set condition (Reconfigurable Terminal Ingredients)--------% 
-    LMI_terminal = [inv(param.Pi{i})*alpha_i, Xi(:,end);...
-                        Xi(:,end)', alpha_i];
-     constraints_i = [constraints_i, LMI_terminal >= 0];
+    %----- Terminal set condition (already alpha^1/2 passed as argument) --------% 
+    % Mosek does not support sqrt(alpha) as parameter for the constraint ------%
+   constraints_i = [constraints_i, norm(param.Pi{i}^(1/2)*Xi(:,end),2) <= alpha_i];
     %--------------------------------------------------------------------------%
    
     ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
