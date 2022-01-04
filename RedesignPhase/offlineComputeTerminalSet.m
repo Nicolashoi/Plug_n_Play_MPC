@@ -3,10 +3,10 @@
 %   Nicolas Hoischen
 % BRIEF:
 %  
-function [obj, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, obj)
+function [obj, Gamma_Ni, alpha_i, feasibility] = offlineComputeTerminalSet(Q_Ni, Ri, obj)
     % system choice
     M = length(obj.activeDGU);%param.nb_subsystems;
-    [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, obj);
+    [Pi, P_Ni, K_Ni, Gamma_Ni, feasibility] = terminal_costs_lyapunov_based(Q_Ni, Ri, obj);
     % Set controllers 
     obj.Pi = Pi;
     obj.K_Ni = K_Ni;
@@ -27,13 +27,14 @@ function [obj, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, obj)
     ops = sdpsettings('verbose', 0);
     diagnostics = optimize(constraints, objective, ops);
     if diagnostics.problem == 1
-        error('Solver thinks algorithm 2 is infeasible')
+        feasibility = 0;
+        disp('Solver thinks algorithm 2 is infeasible')
     end
     alpha_i = value(alpha)/length(obj.activeDGU);
 
 end
 
-function [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, param)
+function [Pi, P_Ni, K_Ni, Gamma_Ni, feasibility] = terminal_costs_lyapunov_based(Q_Ni, Ri, param)
     ni = param.ni;
     M = param.nb_subsystems;%length(param.activeDGU);
     global Ei E H_Ni Y_Ni E_Ni Ebar
@@ -51,8 +52,10 @@ function [Pi, P_Ni, K_Ni, Gamma_Ni] = terminal_costs_lyapunov_based(Q_Ni, Ri, pa
     %% OPTIMIZER
     ops = sdpsettings('solver', 'MOSEK', 'verbose',0);
     diagnostics = optimize(constraints, objective, ops);
+    feasibility = 1;
     if diagnostics.problem == 1
-        error('MOSEK solver thinks algorithm 1 is infeasible')
+        disp('MOSEK solver thinks algorithm 1 is infeasible')
+        feasibility = 0;
     end
     %% Map
     for i = param.activeDGU
@@ -95,7 +98,7 @@ function [constraints, objective] = define_constraints(objective, Q_Ni, Ri, para
         % LMI 26 of the paper
         LMI_2 = LMI_2 + param.W{i}'*H_Ni{i}*param.W{i};
         % objective
-        objective = objective - trace(H_Ni{i});
+        objective = objective - trace(Ei{i});%trace(H_Ni{i});
     end
     constraints = [constraints, LMI_2 <= 0];
 end

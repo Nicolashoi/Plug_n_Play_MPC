@@ -15,7 +15,7 @@
 %   Pi: positive-definite matrix
 %   Gamma_i: positive-definite diagonal matrix
 
-function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, L_tilde,...
+function [Ki, Di, Pi, Gamma_i, feasible] = controller_passivity(A, B, C, F, L_tilde,...
                                                       C_global, i)
     %% Interconnection Variables
     U = L_tilde*C_global;
@@ -31,7 +31,7 @@ function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, L_tilde,...
     H = diag(sdpvar(ni,1)); % diagonal matrix as defined in Th.1
     G = sdpvar(mi,ni, 'full');
     S = diag(sdpvar(mi,1)); % diagonal matrix as defined in Th.1
-    objective = trace(H); % yalmip always assumes minimization so (-) to max
+    objective = -trace(E);%trace(H); % yalmip always assumes minimization so (-) to max
     %% Equation 7
     LMI = [E, 1/2*E*C', (A*E + B*G)', E;...
            1/2*C*E, 1/2*S + 1/2*S', F', zeros(size(F',1),size(E,2));...
@@ -57,11 +57,13 @@ function [Ki, Di, Pi, Gamma_i] = controller_passivity(A, B, C, F, L_tilde,...
        end
     end
     %% OPTIMIZER
+    feasible = 1;
     ops = sdpsettings('solver', 'MOSEK', 'verbose',0);
     %ops.mosek.MSK_IPAR_INFEAS_REPORT_AUTO = 'MSK_ON';
     diagnostics = optimize(constraints, objective, ops);
     if diagnostics.problem == 1
        sprintf('MOSEK solver thinks it is infeasible for system %d', i)
+       feasible = 0;
     end
     %% MAP
     Pi = inv(value(E)); Ki = value(G)*Pi;

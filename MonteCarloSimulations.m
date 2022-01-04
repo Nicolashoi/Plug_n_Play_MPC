@@ -27,9 +27,11 @@ for i=1:nb_subsystems
                                   Vmax(i), Vmin(i), Imax(i), Imin(i));
 end
 dguNet = dguNet.initDynamics();
-R36 = 0.6:0.05:2; % no QI, Ri found for R36 < 0.6 for passivity to guarante asympt. stability
+R36 = 0.005:0.05:5; % no QI, Ri found for R36 < 0.6 for passivity to guarante asympt. stability
 Qi = cell(1,length(R36)); Ri = cell(1,length(R36)); lambda = zeros(1, length(R36));
 costPassivity = zeros(1,length(R36)); costLQR = zeros(1,length(R36));
+feasiblePass = zeros(length(R36),1);
+feasibleLyap = zeros(length(R36),1);
 for i = 1:length(R36)
     Rij_mat(3,6) = R36(i); Rij_mat(6,3) = R36(i);
     dguNet = dguNet.setConnectionsGraph(Rij_mat);
@@ -38,32 +40,37 @@ for i = 1:length(R36)
     dguNet = dguNet.compute_Ref_Constraints(delta_config); % constraints in delta formulation
     control_type = "PASSIVITY";
     config = "DISTRIBUTED";
-    [dguNet, lambda(i)] = sim.setPassiveControllers(dguNet);
-    passivity = true; % set passivity boolean to true
-    [x0, ~, Ri, Qi] = utils.tuningParam(dguNet, delta_config, passivity); % initial parameters definition
-    [X,U] = sim.sim_DGU_distributed(x0, length_sim, dguNet, dguNet.Ki);
-    error_pass(i) = utils.tracking_error(X,U,config,dguNet,activeDGU);
-    % LQR
-    config = "GENERAL";
-    control_type = 'LQR';
-    Ad = dguNet.global_sysd.A; Bd = dguNet.global_sysd.B; 
-    Q = eye(size(Ad,1)); R = eye(size(Bd,2));
-    disp("LQR controller Gain");
-    [Klqr, Pinf, ~] = dlqr(Ad, Bd, Q,R);
-    [Xlqr,Ulqr] = sim.sim_global_DGU(x0, length_sim, dguNet, -Klqr);
-    error_lqr(i) = utils.tracking_error(Xlqr,Ulqr,config,dguNet,activeDGU);
-    % Cost
-    Qpass = blkdiag(Qi{:}); Rpass = blkdiag(Ri{:});
-    costPassivity(i) = utils.compute_QR_cost(X,U,Q,R,...
-                                        "DISTRIBUTED", dguNet.Xref , dguNet.Uref);
-    costLQR(i) = utils.compute_QR_cost(Xlqr,Ulqr,Q,R,"GENERAL",dguNet.Xref,dguNet.Uref);
+    [~, Q_Ni, Ri, Qi] = utils.tuningParam(dguNet, delta_config, false);
+    [~, ~, ~,feasibleLyap(i)] = offlineComputeTerminalSet(Q_Ni, Ri, dguNet);
+    [dguNet, lambda(i), feasiblePass(i)] = sim.setPassiveControllers(dguNet);
+    
+    fprintf("%d feasible states for passivity out of %d tested connection strengths \n ", sum(feasiblePass), length(R36));
+    fprintf("%d feasible states for lyapunov out of %d tested connection strengths \n", sum(feasibleLyap), length(R36));
+%     passivity = true; % set passivity boolean to true
+%     [x0, ~, Ri, Qi] = utils.tuningParam(dguNet, delta_config, passivity); % initial parameters definition
+%     [X,U] = sim.sim_DGU_distributed(x0, length_sim, dguNet, dguNet.Ki);
+%     error_pass(i) = utils.tracking_error(X,U,config,dguNet,activeDGU);
+%     % LQR
+%     config = "GENERAL";
+%     control_type = 'LQR';
+%     Ad = dguNet.global_sysd.A; Bd = dguNet.global_sysd.B; 
+%     Q = eye(size(Ad,1)); R = eye(size(Bd,2));
+%     disp("LQR controller Gain");
+%     [Klqr, Pinf, ~] = dlqr(Ad, Bd, Q,R);
+%     [Xlqr,Ulqr] = sim.sim_global_DGU(x0, length_sim, dguNet, -Klqr);
+%     error_lqr(i) = utils.tracking_error(Xlqr,Ulqr,config,dguNet,activeDGU);
+%     % Cost
+%     Qpass = blkdiag(Qi{:}); Rpass = blkdiag(Ri{:});
+%     costPassivity(i) = utils.compute_QR_cost(X,U,Q,R,...
+%                                         "DISTRIBUTED", dguNet.Xref , dguNet.Uref);
+%     costLQR(i) = utils.compute_QR_cost(Xlqr,Ulqr,Q,R,"GENERAL",dguNet.Xref,dguNet.Uref);
 end
-suboptIdx = (error_pass-error_lqr)./error_lqr;
-meanSubopt = mean(suboptIdx);
-stdSubopt = std(suboptIdx);
-meanCostPassivity = mean(costPassivity); stdCostPassivity = std(costPassivity);
-meanCostLQR = mean(costLQR); stdCostLQR = std(costLQR);
-
+% suboptIdx = (error_pass-error_lqr)./error_lqr;
+% meanSubopt = mean(suboptIdx);
+% stdSubopt = std(suboptIdx);
+% meanCostPassivity = mean(costPassivity); stdCostPassivity = std(costPassivity);
+% meanCostLQR = mean(costLQR); stdCostLQR = std(costLQR);
+disp("Min eigenvalue dissipation rate"); disp(lambda);
 %% PART 2: Transition Phase
 clear
 utils = utilityFunctions;
@@ -74,8 +81,8 @@ filename = 'config_DGU_1.txt';
 dguNet = DGU_network(nb_subsystems); % Instantiate a DGU NETWORK class
 Vr = linspace(49.95, 50.05, nb_subsystems);% references
 
-costFunction = 'current state';
-MC_iter = 2;
+costFunction = 'reference';
+MC_iter = 10;
 CostRelativeDiff = zeros(MC_iter,1);
 [xs, us, xs_delt, us_delt] = deal(cell(1,MC_iter), cell(1,MC_iter), cell(1,MC_iter),...
                                   cell(1,MC_iter));
@@ -83,11 +90,11 @@ CostRelativeDiff = zeros(MC_iter,1);
 maxVr = 0.5; minVr = -0.5; 
 maxIl = 7.5; minIl = 2.5;
 
-
+Il = linspace(2.5, 7.5, nb_subsystems);
 
 for k=1:MC_iter
     Vdrop = (maxVr - minVr)*rand(1,dguNet.nb_subsystems)+ minVr;
-    Il = (maxIl - minIl)*rand(1,dguNet.nb_subsystems) + minIl;
+    %Il = (maxIl - minIl)*rand(1,dguNet.nb_subsystems) + minIl;
     x0 = cell(1, dguNet.nb_subsystems); x0_delta = cell(1,dguNet.nb_subsystems);
 
     % set Electrical parameters and Dynamics for ALL the subsystems in the network

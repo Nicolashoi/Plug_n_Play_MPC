@@ -1,21 +1,27 @@
 classdef SimFunctionsPnP
     methods (Static)
         %% ------------------ COMPUTE PASSIVE GAINS ---------------------------%
-        function [obj, lambda] = setPassiveControllers(obj)
+        function [obj, lambda, feasibility] = setPassiveControllers(obj)
+            lambda_i = zeros(1,length(obj.activeDGU));
+            feasibility = 1;
             for i= obj.activeDGU
-                [obj.Ki{i}, Di, obj.Pi{i}, Gamma_i] = controller_passivity(...
+                [obj.Ki{i}, Di, obj.Pi{i}, Gamma_i, feasible] = controller_passivity(...
                                              obj.Ai{i}, obj.Bi{i},...
                                              obj.Ci{i}, obj.Fi{i}, ...
                                              obj.L_tilde, obj.global_sysd.C,i);
+                if ~feasible
+                    feasibility = 0;
+                end
                 sprintf("K%d", i)
                 disp(obj.Ki{i});
                 sprintf("P%d", i)
                 disp(obj.Pi{i});
-                lambda = min(eig(Gamma_i));
-                fprintf("minimum eigenvalue of dissipation rate %.2d \n", ...
-                        lambda);
-               
+                lambda_i(i) = min(eig(Gamma_i));
             end
+            lambda = min(lambda_i);
+             fprintf("Smallest among all subsystem minimum eigenvalue of dissipation rate %.2d \n", ...
+                        lambda);
+            
             for i= obj.activeDGU
                 neighbors_i = sort([i; neighbors(obj.NetGraph, i)]); 
                 K_block = blkdiag(obj.Ki{neighbors_i}); %block matrix of all neighbors K
@@ -200,8 +206,8 @@ classdef SimFunctionsPnP
             dX{1} = X{1}-horzcat(paramAfter.Xref{:});
             [dXs, dUs, SolverTime] = transition_compute_delta_ss_admm(dX{1}, N, paramBefore,...
                                         paramAfter, target, alpha);
-            xs = dXs + horzcat(paramAfter.Xref{:}); % reference for system after PnP
-            us = dUs + horzcat(paramAfter.Uref{:});
+            xs = dXs + horzcat(paramBefore.Xref{:}); % reference for system before PnP
+            us = dUs + horzcat(paramBefore.Uref{:});
             disp("Steady-State Xs = "); disp(xs);
             disp("Steady-State Us = "); disp(us);
             clear regulation2ss_admm
@@ -212,7 +218,7 @@ classdef SimFunctionsPnP
                         % control input is of size nu x M 
 
                         dU{n} = regulation2ss_admm(dX{n}, N, paramBefore, dXs, dUs, Qi, Ri); % get first control input
-                        U{n} = dU{n} + horzcat(paramAfter.Uref{:});
+                        U{n} = dU{n} + horzcat(paramBefore.Uref{:});
                         if isnan(U{n})
                             error("Input to apply to controller is Nan at iteration %d",n);
                         end
@@ -222,7 +228,7 @@ classdef SimFunctionsPnP
                             % and the state of it's neighbors (concatenated)
                             x_Ni = reshape(dX{n}(:,neighbors_i),[],1); 
                             dX{n+1}(:, i) = paramBefore.A_Ni{i}*x_Ni + paramBefore.Bi{i}*dU{n}(:,i);
-                            X{n+1}(:,i) = dX{n+1}(:,i) + paramAfter.Xref{i};
+                            X{n+1}(:,i) = dX{n+1}(:,i) + paramBefore.Xref{i};
                         end   
                         fprintf("Regulation to steady-state: iteration %d \n", n);
                         n = n+1;         
