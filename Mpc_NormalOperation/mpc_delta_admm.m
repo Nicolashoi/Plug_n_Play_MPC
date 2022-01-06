@@ -1,4 +1,4 @@
-function [u0, Xend,Tk] = mpc_delta_admm(x0, alpha, Q_Ni, Ri, N, param)
+function [u0, Xend,timePerIter] = mpc_delta_admm(x0, alpha, Q_Ni, Ri, N, param)
     rho = 0.25;
     Tk = 0; k = 2; l=1;
     centralStopCond = true;
@@ -73,6 +73,8 @@ function [u0, Xend,Tk] = mpc_delta_admm(x0, alpha, Q_Ni, Ri, N, param)
     end
     fprintf(['Max elapsed time for a system to converge %d and '...
               'max number of iterations %d \n'], Tk, l-1);
+    timePerIter = Tk/(l-1);
+    fprintf("Average time in iteration %d \n", timePerIter);
     u0 = zeros(1,param.nb_subsystems);
     Xend = zeros(param.ni, param.nb_subsystems);
     for i=param.activeDGU

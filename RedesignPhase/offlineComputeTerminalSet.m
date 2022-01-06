@@ -3,12 +3,13 @@
 %   Nicolas Hoischen
 % BRIEF:
 %  
-function [obj, Gamma_Ni, alpha_i, feasibility] = offlineComputeTerminalSet(Q_Ni, Ri, obj)
+function [obj, Gamma_Ni, alpha_i, feasibility, traceP3, traceP6] = offlineComputeTerminalSet(Q_Ni, Ri, obj)
     % system choice
     M = length(obj.activeDGU);%param.nb_subsystems;
     [Pi, P_Ni, K_Ni, Gamma_Ni, feasibility] = terminal_costs_lyapunov_based(Q_Ni, Ri, obj);
     % Set controllers 
     obj.Pi = Pi;
+    traceP3 = trace(Pi{3}); traceP6 = trace(Pi{6});
     obj.K_Ni = K_Ni;
     %% LP (equation 32 of the paper)
     constraints = []; % initialize constraints

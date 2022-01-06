@@ -170,6 +170,7 @@ classdef DGU_network
                 obj.Xref{i} = [obj.Vr(i); obj.Iti_ref(i)-obj.Il(i)];
                 obj.fx_i{i} = [obj.Vmax(i); obj.Imax(i)-obj.Il(i);...
                                 -obj.Vmin(i); -obj.Imin(i)+obj.Il(i)];
+                obj.Uref{i} = obj.di_ref(i)-obj.Ri(i)*obj.Il(i)/obj.Vin(i);
                 obj.fu_i{i} = [1;0];            
             elseif obj.delta_config
                 obj.Xref{i} = [obj.Vr(i); obj.Iti_ref(i)];
@@ -228,7 +229,7 @@ classdef DGU_network
         sgtitle(control_type);
         subplot(2,1,1)
         % --VOLTAGES--%
-        title('Voltages');
+        title('Converter Voltages');
         hold on
         for i = dgu2plot
             plot(tx,voltage{i});
@@ -236,10 +237,10 @@ classdef DGU_network
         if exist('annot2plot') && ~isempty(annot2plot)
             xline(annot2plot.array, '-', annot2plot.text);
         end
-        legend(string(lgd(dgu2plot)));
+        legend(string(lgd(dgu2plot)), 'FontSize', 6);
         grid on
-        ylabel('[V]');
-        xlabel('[s]');
+        ylabel('Voltage [V]');
+        xlabel('Time [s]');
         hold off
         subplot(2,1,2)
         %--CURRENTS--%
@@ -251,10 +252,10 @@ classdef DGU_network
         if exist('annot2plot') && ~isempty(annot2plot)
             xline(annot2plot.array, '-', annot2plot.text);
         end
-        legend(string(lgd(dgu2plot)));
-        ylabel('[A]');
+        legend(string(lgd(dgu2plot)), 'FontSize', 6);
+        ylabel('Current [A]');
         grid on
-        xlabel('[s]');
+        xlabel('Time [s]');
         hold off
 
         figure()
@@ -267,8 +268,8 @@ classdef DGU_network
         if exist('annot2plot') && ~isempty(annot2plot)
             xline(annot2plot.array, '-', annot2plot.text);
         end
-        legend(string(lgd(dgu2plot)));
-        xlabel('[s]');
+        legend(string(lgd(dgu2plot)), 'FontSize', 6);
+        xlabel('Time [s]');
         ylabel('Duty cycle');
         grid on
         hold off

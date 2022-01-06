@@ -37,7 +37,7 @@ classdef utilityFunctions
                                  'of the global system is guaranteed \n']);
                     end
                 case false
-                        Qi(:) = {eye(param.ni)};
+                        Qi(:) = {2*eye(param.ni)};
                         Ri(:) = {eye(param.nu)};
        
                 otherwise 
@@ -94,10 +94,10 @@ classdef utilityFunctions
             err = 0;
             for k = 1:length(X)-1
                 if config == "DISTRIBUTED"
-                    err = err + sum((X{k}(:, dgu2compute)- ...
-                                horzcat(param.Xref{dgu2compute})).^2, 'all')...
-                          + sum((U{k}(dgu2compute)'- ...
-                                 vertcat(param.Uref{dgu2compute})).^2);
+                    xref = horzcat(param.Xref{dgu2compute});
+                    err = err + sum((X{k}(2, dgu2compute)- xref(2,dgu2compute)).^2, 'all');%...
+%                           + sum((U{k}(dgu2compute)'- ...
+%                                  vertcat(param.Uref{dgu2compute})).^2);
                 elseif config == "GENERAL"
                     err = err + sum((X{k}- vertcat(param.Xref{:})).^2, 'all')...
                             + sum((U{k}-vertcat(param.Uref{:})).^2);

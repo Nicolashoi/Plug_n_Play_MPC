@@ -1,5 +1,5 @@
 
-function [xs, us, Tk] = transition_compute_delta_ss_admm(x0, N, paramBefore, ...
+function [xs, us, timePerIter] = transition_compute_delta_ss_admm(x0, N, paramBefore, ...
                                                            paramAfter, target, alpha)
     rho = 0.25;
     TMAX = 10;
@@ -103,7 +103,7 @@ function [xs, us, Tk] = transition_compute_delta_ss_admm(x0, N, paramBefore, ...
                 s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
                 s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
             end
-            if r_norm{k} < 0.025 && s_norm{k} < 0.025
+            if r_norm{k} < 0.01 && s_norm{k} < 0.01
                 break;
             end
         end
@@ -122,6 +122,8 @@ function [xs, us, Tk] = transition_compute_delta_ss_admm(x0, N, paramBefore, ...
     end
     disp("Feasible steady-state found");
     fprintf("Total iterations %d and total time elapsed %d \n", l-1, Tk);
+    timePerIter = Tk/(l-1);
+    fprintf("Average time in iteration %d \n", timePerIter);
 end
 
 function [w_Ni, vi, elapsedTime] = local_optim(i,k, x0, N, paramBefore,...

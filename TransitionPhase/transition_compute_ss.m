@@ -170,7 +170,7 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
     %constraints = [constraints, X{1} == X0];
     
     %% Create optimizer object 
-    ops = sdpsettings('solver', 'MOSEK', 'verbose',2); %options
+    ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
     parameters_in = [];
     solutions_out = {Xs, Us, alpha}; 
     optimizerObj = optimizer(constraints,objective,ops,parameters_in,solutions_out);

@@ -1,4 +1,4 @@
-function [u0, alpha, Tk] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
+function [u0, alpha,timePerIter] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
     rho = 0.25;
     Tk = 0; k = 2; l=1;
     centralStopCond = true;
@@ -80,7 +80,7 @@ function [u0, alpha, Tk] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
                 s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
                 s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
             end
-            if r_norm{k} < 0.05 && s_norm{k} < 0.05
+            if r_norm{k} < 0.01 && s_norm{k} < 0.01
                 break;
             end
         end
@@ -89,6 +89,8 @@ function [u0, alpha, Tk] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
     end
     fprintf(['Max elapsed time for a system to converge %d and '...
               'max number of iterations %d \n'], Tk, l-1);
+    timePerIter = Tk/(l-1);
+    fprintf("Average time in iteration %d \n", timePerIter);
     u0 = zeros(1,param.nb_subsystems);
     alpha = zeros(param.nb_subsystems,1);
     c = zeros(param.ni,param.nb_subsystems);

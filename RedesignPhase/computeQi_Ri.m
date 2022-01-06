@@ -7,7 +7,9 @@ function [Qi, Ri, decVariables] = computeQi_Ri(param, i)
     Plift_cell = cell(length(neighbors_i),1); 
     Acl = param.A_Ni{i} + param.Bi{i}*param.K_Ni{i};
     constraints = [constraints, zDec(neighbors_i) >= 0];
+    %diagMask = eye(param.ni, 'logical');
     for j = neighbors_i'
+        %Plift_cell{j} = diag(param.Pi{j}(diagMask).*zDec(j))+param.Pi{j} - diag(diag(param.Pi{j}));
         Plift_cell{j} = param.Pi{j}*zDec(j);
     end
     PiLift = blkdiag(Plift_cell{:});
@@ -21,13 +23,13 @@ function [Qi, Ri, decVariables] = computeQi_Ri(param, i)
                                 == 0];
 
     constraints = [constraints, Qi >= 1e-2*eye(param.ni), ...
-                                Ri >= 1e-2 * eye(param.nu)];
+                                Ri >= 1e-2*eye(param.nu)];
 %     constraints = [constraints, zDec(1) ==0.0603];
 %     constraints = [constraints, zDec(2) ==0.2817];
     constraints = [constraints, LMI_i>=0];
 %    
     objective = sum(zDec(neighbors_i));
-    objective = objective -0.1*trace(Qi) - 0.1*trace(Ri);
+    objective = objective - 0.1*trace(Qi) - 0.1*trace(Ri);
     ops = sdpsettings('solver', 'MOSEK', 'verbose',0); %options
     diagnostics = optimize(constraints, objective, ops);
     if diagnostics.problem == 1
