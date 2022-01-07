@@ -29,7 +29,7 @@ function [xs, us, timePerIter] = transition_compute_delta_ss_admm(x0, N, paramBe
         elapsedTime = zeros(1,length(unionDGU));
         for i = unionDGU % loop over all subsystems
             [w_Ni{i,k}, vi{i,k}, elapsedTime(i)] = local_optim(i,k, x0, N, paramBefore, paramAfter,...
-                                 z_Ni{i,l}, y_Ni{i,l}, sqrt(alpha(i)), rho, target);
+                                 z_Ni{i,l}, y_Ni{i,l}, alpha(i), rho, target);
             
             % Obtain the sorted list of neighbors of system i: this list will be
             % used to update the local copies of each decision variable. The
@@ -179,15 +179,15 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter,alpha_
     y_Ni.x_eNi = sdpvar(n_Ni_before, 1, 'full');
     y_Ni.x_Ni_mod = sdpvar(n_Ni_after, N, 'full'); 
      
-    
-    eX_Ni_L = sdpvar(N,1,'full');  
-    eX_eNi_L = sdpvar(1, 1, 'full');
-    eX_Ni_mod_L = sdpvar(N,1, 'full'); 
-
-
-    eX_Ni_Q = sdpvar(N,1,'full');  
-    eX_eNi_Q = sdpvar(1, 1, 'full');
-    eX_Ni_mod_Q = sdpvar(N,1, 'full'); 
+%     
+%     eX_Ni_L = sdpvar(N,1,'full');  
+%     eX_eNi_L = sdpvar(1, 1, 'full');
+%     eX_Ni_mod_L = sdpvar(N,1, 'full'); 
+% 
+% 
+%     eX_Ni_Q = sdpvar(N,1,'full');  
+%     eX_eNi_Q = sdpvar(1, 1, 'full');
+%     eX_Ni_mod_Q = sdpvar(N,1, 'full'); 
 
     
     % States and Input of subsystem i
@@ -216,20 +216,20 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter,alpha_
     constraints_i = [constraints_i, Xei == paramBefore.A_Ni{i}*X_eNi + ...
                                             paramBefore.Bi{i}*Uei];
     constraints_i = [constraints_i, X_eNi(idx_Ni)==Xei]; 
-    constraints_i = [constraints_i, eX_eNi_Q >= y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi), ...
-                                    eX_eNi_L >= rho/2 * (X_eNi-z_Ni.x_eNi)'*...
-                                    (X_eNi-z_Ni.x_eNi)];
-    objective_i = objective_i + eX_eNi_L + eX_eNi_Q;
+%     constraints_i = [constraints_i, eX_eNi_Q >= y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi), ...
+%                                     eX_eNi_L >= rho/2 * (X_eNi-z_Ni.x_eNi)'*...
+%                                     (X_eNi-z_Ni.x_eNi)];
+%     objective_i = objective_i + eX_eNi_L + eX_eNi_Q;
     %% Planning Horizon Loop 1->N for the 1st Optimization Part
     for n = 1:N-1 
         % Distributed Dynamics for old topology
         [constraints_i, objective_i] = dynamicsConstraintsBeforePnP(constraints_i,objective_i,...
                                         n, i, paramBefore, idx_Ni,Xi,X_Ni,Ui);
-        constraints_i = [constraints_i, eX_Ni_L(n) >= y_Ni.x_Ni(:,n)'*(X_Ni(:,n)-z_Ni.x_Ni(:,n)),...
-                                        eX_Ni_Q(n) >= rho/2 * (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n))];
+%         constraints_i = [constraints_i, eX_Ni_L(n) >= y_Ni.x_Ni(:,n)'*(X_Ni(:,n)-z_Ni.x_Ni(:,n)),...
+%                                         eX_Ni_Q(n) >= rho/2 * (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n))];
        % augmented Lagrangian         
-%        objective_i = objective_i + y_Ni.x_Ni(:,n)'*(X_Ni(:,n)-z_Ni.x_Ni(:,n)) + ...
-%                      rho/2 * (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n));
+       objective_i = objective_i + y_Ni.x_Ni(:,n)'*(X_Ni(:,n)-z_Ni.x_Ni(:,n)) + ...
+                     rho/2 * (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n));
     end
     
     % Terminal steady state condition for 1st optimization part
@@ -237,14 +237,14 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter,alpha_
     constraints_i = [constraints_i, X_Ni(idx_Ni,N) == Xi(:,N)];
     
      % Augmented Lagrangian at Horizon N 
-    constraints_i = [constraints_i, eX_Ni_L(N) >= y_Ni.x_Ni(:,N)'*(X_Ni(:,N)-z_Ni.x_Ni(:,N)),... 
-                     eX_Ni_Q(N) >= rho/2 * (X_Ni(:,N)-z_Ni.x_Ni(:,N))'*(X_Ni(:,N)-z_Ni.x_Ni(:,N))];
-    objective_i = objective_i + sum(eX_Ni_L) + sum(eX_Ni_Q);
+%     constraints_i = [constraints_i, eX_Ni_L(N) >= y_Ni.x_Ni(:,N)'*(X_Ni(:,N)-z_Ni.x_Ni(:,N)),... 
+%                      eX_Ni_Q(N) >= rho/2 * (X_Ni(:,N)-z_Ni.x_Ni(:,N))'*(X_Ni(:,N)-z_Ni.x_Ni(:,N))];
+%     objective_i = objective_i + sum(eX_Ni_L) + sum(eX_Ni_Q);
 %     Augmented Lagrangian
-%     objective_i = objective_i + y_Ni.x_Ni(:,N)'*(X_Ni(:,N)-z_Ni.x_Ni(:,N)) + ...
-%                    y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi)+ ... 
-%                    rho/2 * (X_Ni(:,N)-z_Ni.x_Ni(:,N))'*(X_Ni(:,N)-z_Ni.x_Ni(:,N))...
-%                   + rho/2 * (X_eNi-z_Ni.x_eNi)'*(X_eNi-z_Ni.x_eNi);
+    objective_i = objective_i + y_Ni.x_Ni(:,N)'*(X_Ni(:,N)-z_Ni.x_Ni(:,N)) + ...
+                   y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi)+ ... 
+                   rho/2 * (X_Ni(:,N)-z_Ni.x_Ni(:,N))'*(X_Ni(:,N)-z_Ni.x_Ni(:,N))...
+                  + rho/2 * (X_eNi-z_Ni.x_eNi)'*(X_eNi-z_Ni.x_eNi);
     
     if target == "reference"
         objective_i = objective_i + (Xei)'*(Xei);
@@ -260,11 +260,13 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter,alpha_
     if any(paramAfter.activeDGU(:) == i)
         constraints_i = dynamicsConstraintsAfterPnP(constraints_i, ...
                                         objective_i, N, i, paramAfter, Xi, X_Ni_mod,...
-                                        Ui, y_Ni, z_Ni, eX_Ni_mod_L,eX_Ni_mod_Q,rho);
+                                        Ui, y_Ni, z_Ni,rho);
   
     %----- Terminal set condition (already alpha^1/2 passed as argument) --------% 
     % Mosek does not support sqrt(alpha) as parameter for the constraint ------%
-   constraints_i = [constraints_i, norm(paramAfter.Pi{i}^(1/2)*Xi(:,end),2) <= alpha_i];
+   tSet = sdpvar(paramAfter.ni,1,'full');
+   constraints_i = [constraints_i, tSet==paramAfter.Pi{i}^(1/2)*Xi(:,end)];
+   constraints_i = [constraints_i, tSet'*tSet <= alpha_i];
      
     solutions_out = {Ui, Uei, X_Ni, X_eNi, X_Ni_mod};
     else
@@ -277,7 +279,7 @@ end
 
 function [constraints_i, objective_i] = dynamicsConstraintsAfterPnP(constraints_i, ...
                                         objective_i, N, i, param, Xi, X_Ni_mod,...
-                                        Ui, y_Ni, z_Ni, eX_Ni_mod_L,eX_Ni_mod_Q, rho)
+                                        Ui, y_Ni, z_Ni, rho)
      
     % recompute neighbor set with parameters after Plug In / Plug Out
     neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
@@ -294,17 +296,17 @@ function [constraints_i, objective_i] = dynamicsConstraintsAfterPnP(constraints_
        constraints_i = [constraints_i, param.Gu_i{i} * Ui(:,n)...
                                    <= param.fu_i{i}];  
                                
-       constraints_i = [constraints_i, eX_Ni_mod_L(n-N+1) >= y_Ni.x_Ni_mod(:,n-N+1)'*(X_Ni_mod(:,n-N+1)-...
-                        z_Ni.x_Ni_mod(:,n-N+1)), eX_Ni_mod_Q(n-N+1) >= rho/2 *...
-                        (X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1))'*...
-                      (X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1))];
+%        constraints_i = [constraints_i, eX_Ni_mod_L(n-N+1) >= y_Ni.x_Ni_mod(:,n-N+1)'*(X_Ni_mod(:,n-N+1)-...
+%                         z_Ni.x_Ni_mod(:,n-N+1)), eX_Ni_mod_Q(n-N+1) >= rho/2 *...
+%                         (X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1))'*...
+%                       (X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1))];
                                
-%        objective_i = objective_i + y_Ni.x_Ni_mod(:,n-N+1)'*(X_Ni_mod(:,n-N+1)-...
-%                     z_Ni.x_Ni_mod(:,n-N+1))...
-%                      + rho/2 *(X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1))'...
-%                          *(X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1));
+       objective_i = objective_i + y_Ni.x_Ni_mod(:,n-N+1)'*(X_Ni_mod(:,n-N+1)-...
+                    z_Ni.x_Ni_mod(:,n-N+1))...
+                     + rho/2 *(X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1))'...
+                         *(X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1));
      end
-     objective_i = objective_i + sum(eX_Ni_mod_L) + sum(eX_Ni_mod_Q);                                                                    
+%      objective_i = objective_i + sum(eX_Ni_mod_L) + sum(eX_Ni_mod_Q);                                                                    
                                     
 end
 

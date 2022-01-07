@@ -232,10 +232,11 @@ classdef DGU_network
         title('Converter Voltages');
         hold on
         for i = dgu2plot
-            plot(tx,voltage{i});
+            plot(tx,voltage{i}, 'linewidth', 1.2);
         end
         if exist('annot2plot') && ~isempty(annot2plot)
-            xline(annot2plot.array, '-', annot2plot.text);
+            xline(annot2plot.array, '--');
+            text(annot2plot.array, [50.08 50.08], annot2plot.text);
         end
         legend(string(lgd(dgu2plot)), 'FontSize', 6);
         grid on
@@ -247,10 +248,11 @@ classdef DGU_network
         title('Converter Currents');
         hold on
         for i = dgu2plot
-            plot(tx, current{i});
+            plot(tx, current{i},'linewidth', 1.2);
         end
         if exist('annot2plot') && ~isempty(annot2plot)
-            xline(annot2plot.array, '-', annot2plot.text);
+             xline(annot2plot.array, '--');
+            text(annot2plot.array, [3 3], annot2plot.text);
         end
         legend(string(lgd(dgu2plot)), 'FontSize', 6);
         ylabel('Current [A]');
@@ -260,13 +262,14 @@ classdef DGU_network
 
         figure()
         %--DUTY CYCLE--%
-        title("Controller  " + control_type)
+        title("Controller")
         hold on
         for i = dgu2plot
-            plot(tu, controller(i,:));
+            plot(tu, controller(i,:),'linewidth', 1.2);
         end
         if exist('annot2plot') && ~isempty(annot2plot)
-            xline(annot2plot.array, '-', annot2plot.text);
+            xline(annot2plot.array, '--');
+            text(annot2plot.array, [0.4 0.4], annot2plot.text);
         end
         legend(string(lgd(dgu2plot)), 'FontSize', 6);
         xlabel('Time [s]');

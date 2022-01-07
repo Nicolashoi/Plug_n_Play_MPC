@@ -207,14 +207,14 @@ boxplot([suboptCost_offline_x0',suboptCost_online_x0' suboptCost_offline_Vr',sub
 hold on
 ylabel("Cost optimality index")
 grid on
-set(gca,'TickLabelInterpreter','latex', 'FontSize', 14);
+set(gca,'TickLabelInterpreter','latex', 'FontSize', 16, 'FontWeight', 'bold');
 hold off
 figure()
 boxplot([eOffline_x0', eOnline_x0', eOffline_Vr', eOnline_Vr'], ...
         'Labels', {'$e_{DS}^{x0}$', '$e_{RTI}^{x0}$', '$e_{DS}^{Vr}$', '$e_{RTI}^{Vr}$' });
 hold on
 grid on
-set(gca,'TickLabelInterpreter','latex', 'FontSize', 14);
+set(gca,'TickLabelInterpreter','latex', 'FontSize', 16);
 ylabel("Tracking error")
 hold off
 
@@ -229,17 +229,18 @@ dguNet = DGU_network(nb_subsystems); % Instantiate a DGU NETWORK class
 Vr = linspace(49.95, 50.05, nb_subsystems);% references
 
 costFunction = 'reference';
-MC_iter = 20;
+MC_iter = 1;
 CostRelativeDiff = zeros(MC_iter,1);
 [xs, us, xs_delt, us_delt] = deal(cell(1,MC_iter), cell(1,MC_iter), cell(1,MC_iter),...
                                   cell(1,MC_iter));
 [SolverTime,SolverTimeDelta] = deal(zeros(MC_iter,1), zeros(MC_iter,1));
 maxVr = 0.5; minVr = -0.5; 
 maxIl = 7.5; minIl = 2.5;
-
+maxI = 2; minI = -2;
 Il = linspace(2.5, 7.5, nb_subsystems);
 
 for k=1:MC_iter
+    Idrop = (maxI-minI)*rand(1,dguNet.nb_subsystems)+minI;
     Vdrop = (maxVr - minVr)*rand(1,dguNet.nb_subsystems)+ minVr;
     %Il = (maxIl - minIl)*rand(1,dguNet.nb_subsystems) + minIl;
     x0 = cell(1, dguNet.nb_subsystems); x0_delta = cell(1,dguNet.nb_subsystems);
@@ -250,8 +251,8 @@ for k=1:MC_iter
                                       Vmax(i), Vmin(i), Imax(i), Imin(i));
     end
     for i = 1:dguNet.nb_subsystems
-        x0_delta{i} = [50+Vdrop(i);5]; % initial condition in normal coordinates
-        x0{i} = [50+Vdrop(i);5-dguNet.Il(i)]; % second state is Ii - Il
+        x0_delta{i} = [50+Vdrop(i);5+Idrop(i)]; % initial condition in normal coordinates
+        x0{i} = [50+Vdrop(i);5-dguNet.Il(i)+Idrop(i)]; % second state is Ii - Il
     end
     %--------------------- 5 DGU ACTIVE ------------------------------------------%
     activeDGU_scen1 = 1:1:5; % Initially, 5 DGUs are active
@@ -267,7 +268,7 @@ for k=1:MC_iter
     dguNet = dguNet.compute_Ref_Constraints(delta_config);
     dguNet = PnP.setPassiveControllers(dguNet);
     passivity = true;
-    [~, ~, Ri, Qi] = utils.tuningParam(dguNet, delta_config, passivity);
+    [~, ~, Ri, Qi, decVar] = utils.tuningParam(dguNet, delta_config, passivity);
     % Delta with offline computation
     delta_config = true;
     dguNet_delta = dguNet;
@@ -283,7 +284,7 @@ for k=1:MC_iter
     dguNet2 = dguNet2.initDynamics(); % recompute Dynamics (changed with integration of DGU 6)
     delta_config = false;
     dguNet2 = dguNet2.compute_Ref_Constraints(delta_config);
-    [dguNet2, Qi, Ri, Q_Ni] = PnP.redesignPhase(dguNet2, dguNet2.NetGraph,dguPos, "add", Qi, Ri);
+    [dguNet2, Qi, Ri, Q_Ni, decVar] = PnP.redesignPhase(dguNet2, dguNet2.NetGraph,dguPos, "add", Qi, Ri, decVar);
 
     dguNet_delta = dguNet_delta.setActiveDGU(activeDGU_scen2); 
     dguNet2_delta = dguNet2;
@@ -303,23 +304,55 @@ for k=1:MC_iter
     if strcmp(costFunction, 'reference')
         costOnlineTransitionRef(k) =  norm(xs{k}-horzcat(dguNet2.Xref{:}),2);
         costDeltaTransitionRef(k) =  norm(xs_delt{k}-horzcat(dguNet2_delta.Xref{:}),2);
-        
+        CostRelativeDiffRef(k) = (costOnlineTransitionRef(k) - costDeltaTransitionRef(k))./...
+                                min(costOnlineTransitionRef(k), costDeltaTransitionRef(k))*100;
     elseif strcmp(costFunction, 'current state')
         costOnlineTransitionx0(k) =  norm(xs{k}-horzcat(x0{:}),2);
         costDeltaTransitionx0(k) =  norm(xs_delt{k}-horzcat(x0_delta{:}),2);
+        CostRelativeDiffx0(k) = (costOnlineTransitionx0(k) - costDeltaTransitionx0(k))./...
+                                min(costOnlineTransitionx0(k), costDeltaTransitionx0(k))*100;
     else
         disp("cost function not well defined");
     end
     %CostRelativeDiff(k) = (costOnlineTransition(k) - costDeltaTransition(k))./min(costOnlineTransition(k), costDeltaTransition(k))*100;
 end
-fprintf("Mean solver time for online terminal ingredients = %d with std = %d \n", ...
-        mean(SolverTime), std(SolverTime));
-fprintf("Mean solver time for offline terminal ingredients = %d with std = %d", ...
-        mean(SolverTimeDelta), std(SolverTimeDelta));
-filename = 'transition2state.mat';
-save(filename);
+% fprintf("Mean solver time for online terminal ingredients = %d with std = %d \n", ...
+%         mean(SolverTime), std(SolverTime));
+% fprintf("Mean solver time for offline terminal ingredients = %d with std = %d", ...
+%         mean(SolverTimeDelta), std(SolverTimeDelta));
+% filename = 'transition2x0.mat';
+% save(filename);
+
+% 
+[X, U, lenSim, xs{k}, us{k},~, ~] = PnP.transitionPhase(x0, dguNet, dguNet2, Qi, Ri, costFunction, ADMM, 'true');
+states = cell2mat(X');
+m = dguNet2.ni;
+colors = {"r", [0.4660 0.6740 0.1880], "b", [0.8500 0.3250 0.0980], "m", "k"};
+for i = activeDGU_scen2
+    voltage{i} = states(1:m:end,i);
+    current{i} = states(2:m:end,i);
+    current{i} = current{i}+ repmat(Il(i), size(current{i}));
+    xref = dguNet_delta.Xref{i};
+    plot(current{i}, voltage{i}, '--', 'Color',colors{i});
+    hold on
+    if strcmp(costFunction, "reference")
+        h1 = plot(xref(2), xref(1), 'o', 'Color', colors{i}, 'MarkerSize', 8, 'Linewidth',1.5);
+        h2 = plot(current{i}(1), voltage{i}(1), 'd', 'Color', colors{i}, 'MarkerSize', 8);
+      
+    elseif strcmp(costFunction, "current state")
+        h1 = plot(current{i}(1), voltage{i}(1), 'o', 'Color', colors{i}, 'MarkerSize', 8, 'Linewidth',1.3);
+        h2 = plot(current{i}(end), voltage{i}(end), '+', 'Color', colors{i}, 'MarkerSize', 8, 'Linewidth',1.3);   
+    end
+    set(get(get(h1,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
+    set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
+    grid on
+    lgd{i} = sprintf("DGU %d", i);
+end
+xlabel('Current [A]');
+ylabel('Voltage [V]');
+legend(string(lgd(activeDGU_scen2)), 'FontSize', 9);
+hold off
 %%
-load transition2reference
-eDiff_ref = (costOnlineTransitionRef-costDeltaTransitionRef)./min(costOnlineTransitionRef, costDeltaTransitionRef)*100;
-mean(eDiff_ref)
-std(eDiff_ref)
+clear
+load transition2ref
+load transition2x0

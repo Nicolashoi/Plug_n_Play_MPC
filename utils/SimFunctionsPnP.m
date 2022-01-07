@@ -85,7 +85,7 @@ classdef SimFunctionsPnP
         end
         %% ------------------------ P&P OPERATIONS------------------------------
         %-------------------------- REDESIGN PHASE-----------------------------%       
-        function [obj, Qi, Ri, Q_Ni] = redesignPhase(obj, oldGraph, idxDGU, procedure, QiOld, RiOld)
+        function [obj, Qi, Ri, Q_Ni, decVariables] = redesignPhase(obj, oldGraph, idxDGU, procedure, QiOld, RiOld, decVarOld)
             if procedure == "add"
                 out_neighbors = sort([idxDGU; neighbors(oldGraph, idxDGU)]);  
             elseif procedure == "delete"
@@ -94,6 +94,7 @@ classdef SimFunctionsPnP
                 error("procedure not well defined: add or delete");
             end
             Qi = QiOld; Ri = RiOld;
+            decVariables = decVarOld;
             for k = 1:length(out_neighbors)
                  i = out_neighbors(k);
                  [obj.Ki{i}, Di, obj.Pi{i}, Gamma_i] = controller_passivity(...
@@ -113,7 +114,7 @@ classdef SimFunctionsPnP
                 obj.K_Ni{i} = K_block(out_neighbors==i,:); % extract only row corresponding to subsystem i
              end
              
-             for k = 1:length(out_neighbors)
+             for i = out_neighbors'
                 % Compute associated Qi and RI matrices
                 [Qi{i}, Ri{i}, decVariables{i}] = computeQi_Ri(obj, i);
                 decVarSum = sum(cell2mat(decVariables),2);
@@ -159,8 +160,8 @@ classdef SimFunctionsPnP
             clear regulation2ss_admm
             n = 1;
             if regulation
-                while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 5e-2) || ...
-                      any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 5e-2)    
+                while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 1e-2) || ...
+                      any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 1e-2)    
                         % control input is of size nu x M 
                         if ADMM
                             U{n} = regulation2ss_admm(X{n}, N, paramBefore, xs, us, Qi, Ri); % get first control input
@@ -197,7 +198,7 @@ classdef SimFunctionsPnP
             end
         end
         
-        %- Transition Phase using offline reconfigurable terminal ingredients -%
+        %- Transition Phase using offline terminal ingredients -%
         %- Delta formulation required 
         function [X, U, lenSim, xs, us, SolverTime] = transitionPhaseDeltaADMM(x0, paramBefore,...
                                                          paramAfter, Qi, Ri, target, alpha, regulation)

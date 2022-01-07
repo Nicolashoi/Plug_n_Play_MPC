@@ -2,7 +2,7 @@
 classdef utilityFunctions
     methods (Static)
           % Compute initial state and matrices 
-          function [x0, Q_Ni, Ri, Qi] = tuningParam(param, delta_config, passivity)
+          function [x0, Q_Ni, Ri, Qi, decVariables] = tuningParam(param, delta_config, passivity)
             M = param.nb_subsystems;
             Q_Ni = cell(1, M); 
             Qi = cell(1, M);
