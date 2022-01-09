@@ -276,7 +276,7 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter, rho, 
 %     objective_i = objective_i + sum(eX_Ni_L) + sum(eX_Ni_Q);
 
     if target == "reference"
-        objective_i = objective_i +     (Xei - paramBefore.Xref{i})'*...
+        objective_i = objective_i +    100* (Xei - paramBefore.Xref{i})'*...
                                         (Xei - paramBefore.Xref{i});
     elseif target == "current state"
         objective_i = objective_i + (Xei-x0(:,i))'*(Xei-x0(:,i));

@@ -28,7 +28,7 @@ for i=1:nb_subsystems
 end
 dguNet = dguNet.initDynamics();
 %R36 = 0.005:0.05:5; % no QI, Ri found for R36 < 0.6 for passivity to guarante asympt. stability
-R36 = 0.01:0.1:6;
+R36 = 0.36;
 Qi = cell(1,length(R36)); Ri = cell(1,length(R36)); lambda = zeros(1, length(R36));
 costPassivity = zeros(1,length(R36)); costLQR = zeros(1,length(R36));
 feasiblePass = zeros(length(R36),1); traceP3_pass = zeros(length(R36),1);
@@ -43,8 +43,8 @@ for i = 1:length(R36)
     control_type = "PASSIVITY";
     config = "DISTRIBUTED";
     [~, Q_Ni, Ri, Qi] = utils.tuningParam(dguNet, delta_config, false);
-    [~, ~, ~,feasibleLyap(i), traceP3_lyap(i), traceP6_lyap(i)] = offlineComputeTerminalSet(Q_Ni, Ri, dguNet);
-    [dguNet, lambda(i), feasiblePass(i), traceP3_pass(i), traceP6_pass(i)] = sim.setPassiveControllers(dguNet);
+    [~, ~, ~,feasibleLyap(i)] = offlineComputeTerminalSet(Q_Ni, Ri, dguNet);
+    [dguNet, lambda(i), feasiblePass(i)] = sim.setPassiveControllers(dguNet);
     
     fprintf("%d feasible states for passivity out of %d tested connection strengths \n ", sum(feasiblePass), length(R36));
     fprintf("%d feasible states for lyapunov out of %d tested connection strengths \n", sum(feasibleLyap), length(R36));
@@ -228,7 +228,7 @@ filename = 'config_DGU_1.txt';
 dguNet = DGU_network(nb_subsystems); % Instantiate a DGU NETWORK class
 Vr = linspace(49.95, 50.05, nb_subsystems);% references
 
-costFunction = 'reference';
+costFunction = 'current state';
 MC_iter = 1;
 CostRelativeDiff = zeros(MC_iter,1);
 [xs, us, xs_delt, us_delt] = deal(cell(1,MC_iter), cell(1,MC_iter), cell(1,MC_iter),...
@@ -238,8 +238,10 @@ maxVr = 0.5; minVr = -0.5;
 maxIl = 7.5; minIl = 2.5;
 maxI = 2; minI = -2;
 Il = linspace(2.5, 7.5, nb_subsystems);
-
+Vr6 = 49.1:0.1:51;
+MC_iter = length(Vr6);
 for k=1:MC_iter
+    %Vr(6) = Vr6(k);
     Idrop = (maxI-minI)*rand(1,dguNet.nb_subsystems)+minI;
     Vdrop = (maxVr - minVr)*rand(1,dguNet.nb_subsystems)+ minVr;
     %Il = (maxIl - minIl)*rand(1,dguNet.nb_subsystems) + minIl;
@@ -251,9 +253,13 @@ for k=1:MC_iter
                                       Vmax(i), Vmin(i), Imax(i), Imin(i));
     end
     for i = 1:dguNet.nb_subsystems
-        x0_delta{i} = [50+Vdrop(i);5+Idrop(i)]; % initial condition in normal coordinates
-        x0{i} = [50+Vdrop(i);5-dguNet.Il(i)+Idrop(i)]; % second state is Ii - Il
+        %x0_delta{i} = [50+Vdrop(i);5+Idrop(i)]; % initial condition in normal coordinates
+        %x0{i} = [50+Vdrop(i);5-dguNet.Il(i)+Idrop(i)]; % second state is Ii - Il
+        x0_delta{i} = [50;5]; % initial condition in normal coordinates
+        x0{i} = [50;5-dguNet.Il(i)]; % second state is Ii - Il
     end
+    x0{6} = [Vr6(k); 5-dguNet.Il(6)];
+    x0_delta{6} = [Vr6(k); 5];
     %--------------------- 5 DGU ACTIVE ------------------------------------------%
     activeDGU_scen1 = 1:1:5; % Initially, 5 DGUs are active
     Rij_mat = zeros(nb_subsystems);
@@ -320,39 +326,39 @@ end
 %         mean(SolverTime), std(SolverTime));
 % fprintf("Mean solver time for offline terminal ingredients = %d with std = %d", ...
 %         mean(SolverTimeDelta), std(SolverTimeDelta));
-% filename = 'transition2x0.mat';
+% filename = 'transition2x0Increment.mat';
 % save(filename);
 
 % 
-[X, U, lenSim, xs{k}, us{k},~, ~] = PnP.transitionPhase(x0, dguNet, dguNet2, Qi, Ri, costFunction, ADMM, 'true');
-states = cell2mat(X');
-m = dguNet2.ni;
-colors = {"r", [0.4660 0.6740 0.1880], "b", [0.8500 0.3250 0.0980], "m", "k"};
-for i = activeDGU_scen2
-    voltage{i} = states(1:m:end,i);
-    current{i} = states(2:m:end,i);
-    current{i} = current{i}+ repmat(Il(i), size(current{i}));
-    xref = dguNet_delta.Xref{i};
-    plot(current{i}, voltage{i}, '--', 'Color',colors{i});
-    hold on
-    if strcmp(costFunction, "reference")
-        h1 = plot(xref(2), xref(1), 'o', 'Color', colors{i}, 'MarkerSize', 8, 'Linewidth',1.5);
-        h2 = plot(current{i}(1), voltage{i}(1), 'd', 'Color', colors{i}, 'MarkerSize', 8);
-      
-    elseif strcmp(costFunction, "current state")
-        h1 = plot(current{i}(1), voltage{i}(1), 'o', 'Color', colors{i}, 'MarkerSize', 8, 'Linewidth',1.3);
-        h2 = plot(current{i}(end), voltage{i}(end), '+', 'Color', colors{i}, 'MarkerSize', 8, 'Linewidth',1.3);   
-    end
-    set(get(get(h1,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
-    set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
-    grid on
-    lgd{i} = sprintf("DGU %d", i);
-end
-xlabel('Current [A]');
-ylabel('Voltage [V]');
-legend(string(lgd(activeDGU_scen2)), 'FontSize', 9);
-hold off
+% [X, U, lenSim, xs{k}, us{k},~, ~] = PnP.transitionPhase(x0, dguNet, dguNet2, Qi, Ri, costFunction, ADMM, 'true');
+% states = cell2mat(X');
+% m = dguNet2.ni;
+% colors = {"r", [0.4660 0.6740 0.1880], "b", [0.8500 0.3250 0.0980], "m", "k"};
+% for i = activeDGU_scen2
+%     voltage{i} = states(1:m:end,i);
+%     current{i} = states(2:m:end,i);
+%     current{i} = current{i}+ repmat(Il(i), size(current{i}));
+%     xref = dguNet_delta.Xref{i};
+%     plot(current{i}, voltage{i}, '--', 'Color',colors{i});
+%     hold on
+%     if strcmp(costFunction, "reference")
+%         h1 = plot(xref(2), xref(1), 'o', 'Color', colors{i}, 'MarkerSize', 8, 'Linewidth',1.5);
+%         h2 = plot(current{i}(1), voltage{i}(1), 'd', 'Color', colors{i}, 'MarkerSize', 8);
+%       
+%     elseif strcmp(costFunction, "current state")
+%         h1 = plot(current{i}(1), voltage{i}(1), 'o', 'Color', colors{i}, 'MarkerSize', 8, 'Linewidth',1.3);
+%         h2 = plot(current{i}(end), voltage{i}(end), '+', 'Color', colors{i}, 'MarkerSize', 8, 'Linewidth',1.3);   
+%     end
+%     set(get(get(h1,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
+%     set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
+%     grid on
+%     lgd{i} = sprintf("DGU %d", i);
+% end
+% xlabel('Current [A]');
+% ylabel('Voltage [V]');
+% legend(string(lgd(activeDGU_scen2)), 'FontSize', 9);
+% hold off
 %%
 clear
-load transition2ref
+load transition2refNew
 load transition2x0

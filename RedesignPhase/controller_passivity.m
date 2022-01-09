@@ -42,16 +42,16 @@ function [Ki, Di, Pi, Gamma_i, feasible] = controller_passivity(A, B, C, F, L_ti
 
     %% Theorem 1
     %epsilon_i = sdpvar(1); %define value
-    epsilon_i = 1e-3;
+    epsilon_i = 1e-5;
     constraints = [constraints, E >= epsilon_i*eye(ni), ...
                    H >= epsilon_i*eye(ni), S >= epsilon_i*eye(mi)];
-    epsilon_0 = 1e-3;
+    epsilon_0 = 1e-5;
     for j=1:ni
-        constraints = [constraints, H(j,j) <= 1/(norm(Wi(j,:),1)+ epsilon_0)];
+       constraints = [constraints, H(j,j) <= 1/(norm(Wi(j,:),1)+ epsilon_0)];
     end
     for k=1:mi
        if norm(U(k,:),1) ~= 0
-            constraints = [constraints, S(k,k) <= 1/norm(Ui(k,:),1)]; 
+           constraints = [constraints, S(k,k) <= 1/norm(Ui(k,:),1)]; 
        else 
            disp("Warning: division by 0 in controller passivity Theorem 1");
        end

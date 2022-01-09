@@ -208,22 +208,25 @@ classdef DGU_network
         elseif config == "DISTRIBUTED"
             k = param.ni;
             states = cell2mat(X');
+            controller = cell2mat(U')'; %first row u1, second row u2, column are timesteps
             for i = dgu2plot
                 voltage{i} = states(1:k:end,i);
                 current{i} = states(2:k:end,i);
                 if ~param.delta_config
                     current{i} = current{i}+ repmat(param.Il(i), size(current{i}));
+                    controller(i,:) = controller(i,:)+repmat(param.Il(i)*param.Ri(i)/...
+                                                         param.Vin(i), size(controller(i,:)));
                 end
                 lgd{i} = sprintf("DGU %d", i);
             end
-            controller = cell2mat(U')'; %first row u1, second row u2, column are timesteps
+            
         else
             error("not implemented configuration in plot states");
          end
  
-        sim_stepsX = simStart:length(X);
+        sim_stepsX = (simStart-1):length(X)-1;
         tx = param.Ts .* sim_stepsX; % x-time vector for states in seconds
-        sim_stepsU = simStart:length(U);
+        sim_stepsU = (simStart-1):length(U)-1;
         tu = param.Ts .* sim_stepsU; % x-time vector for controller in seconds
         figure()
         sgtitle(control_type);
@@ -236,7 +239,7 @@ classdef DGU_network
         end
         if exist('annot2plot') && ~isempty(annot2plot)
             xline(annot2plot.array, '--');
-            text(annot2plot.array, [50.08 50.08], annot2plot.text);
+            text(annot2plot.array, [50.15 50.15], annot2plot.text);
         end
         legend(string(lgd(dgu2plot)), 'FontSize', 6);
         grid on
@@ -252,7 +255,7 @@ classdef DGU_network
         end
         if exist('annot2plot') && ~isempty(annot2plot)
              xline(annot2plot.array, '--');
-            text(annot2plot.array, [3 3], annot2plot.text);
+            text(annot2plot.array, [2.5 2.5], annot2plot.text);
         end
         legend(string(lgd(dgu2plot)), 'FontSize', 6);
         ylabel('Current [A]');
@@ -269,7 +272,7 @@ classdef DGU_network
         end
         if exist('annot2plot') && ~isempty(annot2plot)
             xline(annot2plot.array, '--');
-            text(annot2plot.array, [0.4 0.4], annot2plot.text);
+            text(annot2plot.array, [0.27 0.27], annot2plot.text);
         end
         legend(string(lgd(dgu2plot)), 'FontSize', 6);
         xlabel('Time [s]');
