@@ -273,6 +273,7 @@ classdef DGU_network
         if exist('annot2plot') && ~isempty(annot2plot)
             xline(annot2plot.array, '--');
             text(annot2plot.array, [0.27 0.27], annot2plot.text);
+            xlim([0;1e-4]);
         end
         legend(string(lgd(dgu2plot)), 'FontSize', 6);
         xlabel('Time [s]');

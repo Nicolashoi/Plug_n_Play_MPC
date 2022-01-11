@@ -107,6 +107,7 @@ error_mpc_offline_ADMM = zeros(1,MC_iter); suboptimality_index_offline = zeros(1
 error_mpc_online_ADMM = zeros(1,MC_iter); suboptimality_index_online = zeros(1,MC_iter);
 Il = linspace(2.5, 7.5, nb_subsystems);
 maxDrop = 0.5; minDrop = -0.5; 
+maxI = 2; minI = -2;
 % set Electrical parameters and Dynamics for ALL the subsystems in the network
 for i=1:nb_subsystems
         dguNet = dguNet.initElecParam(i,Vin(i), Vr(i), Il(i), R(i), C(i), L(i), ...
@@ -116,13 +117,14 @@ dguNet = dguNet.initDynamics(); % initialize dynamics
 for k=1:MC_iter
     dguNet.Vr = Vr; % reinitialize reference voltages
     Vdrop = (maxDrop - minDrop)*rand(1,dguNet.nb_subsystems)+ minDrop;
+    Idrop = (maxI-minI)*rand(1,dguNet.nb_subsystems)+minI;
     x0 = cell(1, dguNet.nb_subsystems); x0_delta = cell(1,dguNet.nb_subsystems);
     for i = 1:dguNet.nb_subsystems
-        x0_delta{i} = [50+Vdrop(i);5]; % initial condition in normal coordinates
-        x0{i} = [50+Vdrop(i);5-dguNet.Il(i)]; % second state is Ii - Il
-%         x0_delta{i} = [50;5]; % initial condition in normal coordinates
-%         x0{i} = [50;5-dguNet.Il(i)]; % second state is Ii - Il
-%         dguNet.Vr(i) = dguNet.Vr(i) + Vdrop(i);
+%         x0_delta{i} = [50+Vdrop(i);5]; % initial condition in normal coordinates
+%         x0{i} = [50+Vdrop(i);5-dguNet.Il(i)]; % second state is Ii - Il
+        x0_delta{i} = [50;5]; % initial condition in normal coordinates
+        x0{i} = [50;5-dguNet.Il(i)]; % second state is Ii - Il
+        dguNet.Vr(i) = dguNet.Vr(i) + Vdrop(i);
     end
 
     % set Passivity Gains
@@ -130,14 +132,15 @@ for k=1:MC_iter
     dguNet = dguNet.compute_Ref_Constraints(delta_config);
     dguNet = PnP.setPassiveControllers(dguNet);
     passivity = true;
+    % obtain Qi and Ri for passivity
     [~, Q_Ni, Ri, Qi] = utils.tuningParam(dguNet, delta_config, passivity);
     % Delta with offline computation
     delta_config = true;
     dguNet_delta = dguNet;
     dguNet_delta = dguNet_delta.compute_Ref_Constraints(delta_config);
     use_passivity = false;
-    [~, Q_Ni_delt, Ri_delt, Qi_delt] = utils.tuningParam(dguNet_delta, delta_config, use_passivity);
-    [dguNet_delta, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni_delt, Ri_delt, dguNet_delta);
+    %[~, Q_Ni_delt, Ri_delt, Qi_delt] = utils.tuningParam(dguNet_delta, delta_config, use_passivity);
+    [dguNet_delta, Gamma_Ni, alpha_i] = offlineComputeTerminalSet(Q_Ni, Ri, dguNet_delta);
     alpha = alpha_i*ones(nb_subsystems,1); % same alpha for every subsystem @ beginning
     
     % Run LQR
@@ -145,11 +148,11 @@ for k=1:MC_iter
     Ad = dguNet.global_sysd.A; Bd = dguNet.global_sysd.B; 
     Q = 2*eye(size(Ad,1)); R = eye(size(Bd,2));
     % LQR with offline design of Q and R
-    dx0 = vertcat(x0_delta{:}) - vertcat(dguNet_delta.Xref{:});
-    [Klqr, Pinf, ~] = dlqr(Ad, Bd, Q,R);
-    [Xlqr,Ulqr] = PnP.sim_global_DGU(x0_delta, length_sim, dguNet_delta, -Klqr);
-    cost_lqr_offline(k) = dx0'*Pinf*dx0;
-    error_lqr_offline(k) = utils.tracking_error(Xlqr,Ulqr,config,dguNet_delta,activeDGU);
+%     dx0 = vertcat(x0_delta{:}) - vertcat(dguNet_delta.Xref{:});
+%     [Klqr, Pinf, ~] = dlqr(Ad, Bd, Q,R);
+%     [Xlqr,Ulqr] = PnP.sim_global_DGU(x0_delta, length_sim, dguNet_delta, -Klqr);
+%     cost_lqr_offline(k) = dx0'*Pinf*dx0;
+%     error_lqr_offline(k) = utils.tracking_error(Xlqr,Ulqr,config,dguNet_delta,activeDGU);
     % LQR with online design of Q and R
     [Klqr, Pinf, ~] = dlqr(Ad, Bd, blkdiag(Qi{:}), blkdiag(Ri{:}));
     [Xlqr,Ulqr] = PnP.sim_global_DGU(x0_delta, length_sim, dguNet_delta, -Klqr);
@@ -228,7 +231,7 @@ filename = 'config_DGU_1.txt';
 dguNet = DGU_network(nb_subsystems); % Instantiate a DGU NETWORK class
 Vr = linspace(49.95, 50.05, nb_subsystems);% references
 
-costFunction = 'current state';
+costFunction = 'reference';
 MC_iter = 1;
 CostRelativeDiff = zeros(MC_iter,1);
 [xs, us, xs_delt, us_delt] = deal(cell(1,MC_iter), cell(1,MC_iter), cell(1,MC_iter),...
@@ -239,27 +242,29 @@ maxIl = 7.5; minIl = 2.5;
 maxI = 2; minI = -2;
 Il = linspace(2.5, 7.5, nb_subsystems);
 Vr6 = 49.1:0.1:51;
-MC_iter = length(Vr6);
+Il6 = 0:1:10;
+MC_iter = length(Il6);
 for k=1:MC_iter
     %Vr(6) = Vr6(k);
+    Il(6) = Il6(k);
     Idrop = (maxI-minI)*rand(1,dguNet.nb_subsystems)+minI;
     Vdrop = (maxVr - minVr)*rand(1,dguNet.nb_subsystems)+ minVr;
     %Il = (maxIl - minIl)*rand(1,dguNet.nb_subsystems) + minIl;
     x0 = cell(1, dguNet.nb_subsystems); x0_delta = cell(1,dguNet.nb_subsystems);
-
+    
     % set Electrical parameters and Dynamics for ALL the subsystems in the network
     for i=1:nb_subsystems
         dguNet = dguNet.initElecParam(i,Vin(i), Vr(i), Il(i), R(i), C(i), L(i), ...
                                       Vmax(i), Vmin(i), Imax(i), Imin(i));
     end
     for i = 1:dguNet.nb_subsystems
-        %x0_delta{i} = [50+Vdrop(i);5+Idrop(i)]; % initial condition in normal coordinates
-        %x0{i} = [50+Vdrop(i);5-dguNet.Il(i)+Idrop(i)]; % second state is Ii - Il
+%         x0_delta{i} = [50+Vdrop(i);5+Idrop(i)]; % initial condition in normal coordinates
+%         x0{i} = [50+Vdrop(i);5-dguNet.Il(i)+Idrop(i)]; % second state is Ii - Il
         x0_delta{i} = [50;5]; % initial condition in normal coordinates
         x0{i} = [50;5-dguNet.Il(i)]; % second state is Ii - Il
     end
-    x0{6} = [Vr6(k); 5-dguNet.Il(6)];
-    x0_delta{6} = [Vr6(k); 5];
+%     x0{6} = [Vr6(k); 5-dguNet.Il(6)];
+%     x0_delta{6} = [Vr6(k); 5];
     %--------------------- 5 DGU ACTIVE ------------------------------------------%
     activeDGU_scen1 = 1:1:5; % Initially, 5 DGUs are active
     Rij_mat = zeros(nb_subsystems);
@@ -326,8 +331,8 @@ end
 %         mean(SolverTime), std(SolverTime));
 % fprintf("Mean solver time for offline terminal ingredients = %d with std = %d", ...
 %         mean(SolverTimeDelta), std(SolverTimeDelta));
-% filename = 'transition2x0Increment.mat';
-% save(filename);
+filename = 'transition2refIl.mat';
+save(filename);
 
 % 
 % [X, U, lenSim, xs{k}, us{k},~, ~] = PnP.transitionPhase(x0, dguNet, dguNet2, Qi, Ri, costFunction, ADMM, 'true');
