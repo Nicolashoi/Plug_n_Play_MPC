@@ -201,15 +201,10 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter, rho, 
     y_Ni.c_Ni = sdpvar(n_Ni_after,1,'full'); 
     
     % Constraint variables for the augmented Lagrangian
-%     eX_Ni_L = sdpvar(N,1,'full');  
-%     eX_eNi_L = sdpvar(1, 1, 'full');
-%     eX_Ni_mod_L = sdpvar(N,1, 'full'); 
-%     eTerm_L = sdpvar(1,1, 'full');
-% 
-%     eX_Ni_Q = sdpvar(N,1,'full');  
-%     eX_eNi_Q = sdpvar(1, 1, 'full');
-%     eX_Ni_mod_Q = sdpvar(N,1, 'full'); 
-%     eTerm_Q = sdpvar(1,1, 'full');
+    eX_Ni_L = sdpvar(N,1,'full');  
+    eX_eNi_L = sdpvar(1, 1, 'full');
+    eX_Ni_mod_L = sdpvar(N,1, 'full'); 
+    eTerm_L = sdpvar(1,1, 'full');
 
     % States and Input of subsystem i
     Xi = sdpvar(ni,2*N, 'full');
@@ -244,36 +239,27 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter, rho, 
     % With new redesigned local passive feedback gains
     constraints_i = [constraints_i, Uei == paramAfter.Ki{i}*Xei + di]; 
     % Augmented Lagrangian constraints added to objective
-%     constraints_i = [constraints_i, eX_eNi_L >= y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi), ...
-%                                     eX_eNi_Q >= rho/2 * (X_eNi-z_Ni.x_eNi)'*...
-%                                     (X_eNi-z_Ni.x_eNi)];
-%     objective_i = objective_i + eX_eNi_L + eX_eNi_Q;
-    
+    constraints_i = [constraints_i, eX_eNi_L == y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi)];                               
+    objective_i = objective_i + eX_eNi_L +  rho/2*(X_eNi-z_Ni.x_eNi)'*(X_eNi-z_Ni.x_eNi);
     %% Planning Horizon Loop 1->N for the 1st Optimization Part
     for n = 1:N-1 
         % Distributed Dynamics for old topology
         [constraints_i, objective_i] = dynamicsConstraintsBeforePnP(constraints_i,objective_i,...
                                         n, i, paramBefore, idx_Ni,Xi,X_Ni,Ui);
-%         constraints_i = [constraints_i, eX_Ni_L(n) >= y_Ni.x_Ni(:,n)'*...
-%                         (X_Ni(:,n)-z_Ni.x_Ni(:,n)), eX_Ni_Q(n) >= rho/2 * ...
-%                         (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n))];
-         objective_i = objective_i + y_Ni.x_Ni(:,n)'*(X_Ni(:,n)-z_Ni.x_Ni(:,n)) + ...
-                     rho/2 * (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n));
+        constraints_i = [constraints_i, eX_Ni_L(n) == y_Ni.x_Ni(:,n)'*...
+                                                     (X_Ni(:,n)-z_Ni.x_Ni(:,n))]; 
+        objective_i = objective_i + rho/2*(X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n));
     end
      % Terminal steady state condition for 1st optimization part
     constraints_i = [constraints_i, Xi(:,N) == Xei]; 
     constraints_i = [constraints_i, X_Ni(idx_Ni,N) == Xi(:,N)];
     
     % Augmented Lagrangian at Horizon N 
-     objective_i = objective_i + y_Ni.x_Ni(:,N)'*(X_Ni(:,N)-z_Ni.x_Ni(:,N)) + ...
-                   y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi)+ ... 
-                   rho/2 * (X_Ni(:,N)-z_Ni.x_Ni(:,N))'*(X_Ni(:,N)-z_Ni.x_Ni(:,N))...
-                  + rho/2 * (X_eNi-z_Ni.x_eNi)'*(X_eNi-z_Ni.x_eNi);
     % Horizon 1-> N constraints for Lagrangian, added to objective function
-%     constraints_i = [constraints_i, eX_Ni_L(N) >= y_Ni.x_Ni(:,N)'*...
-%                     (X_Ni(:,N)-z_Ni.x_Ni(:,N)), eX_Ni_Q(N) >= rho/2 * ...
-%                     (X_Ni(:,N)-z_Ni.x_Ni(:,N))'*(X_Ni(:,N)-z_Ni.x_Ni(:,N))];
-%     objective_i = objective_i + sum(eX_Ni_L) + sum(eX_Ni_Q);
+    constraints_i = [constraints_i, eX_Ni_L(N) == y_Ni.x_Ni(:,N)'*...
+                                                 (X_Ni(:,N)-z_Ni.x_Ni(:,N))];
+    objective_i = objective_i + sum(eX_Ni_L)+ rho/2*(X_Ni(:,N)-z_Ni.x_Ni(:,N))'...
+                                                   *(X_Ni(:,N)-z_Ni.x_Ni(:,N)) ;
 
     if target == "reference"
         objective_i = objective_i +     (Xei - paramBefore.Xref{i})'*...
@@ -286,45 +272,31 @@ function localOptimizer = init_optimizer(x0,i, N, paramBefore, paramAfter, rho, 
     %% 2nd Optimization Part N+1 -> 2N with new Network topology
     % Dynamics once steady state has been reached at horizon N
     if any(paramAfter.activeDGU(:) == i)
-%         constraints_i = dynamicsConstraintsAfterPnP(constraints_i, ...
-%                                         objective_i, N, i, paramAfter, Xi, X_Ni_mod,...
-%                                         Ui, y_Ni, z_Ni, eX_Ni_mod_L,eX_Ni_mod_Q, rho);
-          constraints_i = dynamicsConstraintsAfterPnP(constraints_i, ...
+        constraints_i = dynamicsConstraintsAfterPnP(constraints_i, ...
                                         objective_i, N, i, paramAfter, Xi, X_Ni_mod,...
-                                        Ui, y_Ni, z_Ni, rho);
+                                        Ui, y_Ni, z_Ni, eX_Ni_mod_L, rho);
 
         % Reconfigurable Terminal Ingredients 
         [constraints_i, alpha_Ni, c_Ni] = terminalConstraints(constraints_i, paramAfter,i,...
          ci, di,  alpha_i, lambda_i, bi);
 
         %---- Terminal set condition (Reconfigurable Terminal Ingredients)-----% 
-%          LMI_terminal = [inv(paramAfter.Pi{i})*alpha_i(i), Xi(:,end) - ci(:,i);...
-%                         Xi(:,end)' - ci(:,i)', alpha_i(i)];
-%         constraints_i = [constraints_i, LMI_terminal >= 0];
-        tSet = sdpvar(paramAfter.ni,1,'full');
-        constraints_i = [constraints_i, tSet==paramAfter.Pi{i}^(1/2)*(Xi(:,end)-ci(:,i))];
-        constraints_i = [constraints_i, tSet'*tSet <= alpha_i(i)^2];
-%         constraints_i = [constraints_i, norm(paramAfter.Pi{i}^(1/2)*(Xi(:,end)-ci(:,i)),2) <= alpha_i(i)];
-%         constraints_i = [constraints_i, alpha_i(i) >= 0];
+        constraints_i = [constraints_i, norm(paramAfter.Pi{i}^(1/2)*(Xi(:,end)-ci(:,i)),2) <= alpha_i(i)];
+        constraints_i = [constraints_i, alpha_i(i) >= 0];
         %----------------------------------------------------------------------%
         % Constraints for augmented Lagrangian are added to objective
-%        constraints_i = [constraints_i, eTerm_L >= y_Ni.alpha_Ni'*(diag(alpha_Ni) ...
-%                     - z_Ni.alpha_Ni) + y_Ni.c_Ni'*(c_Ni - z_Ni.c_Ni),...
-%                     eTerm_Q >= rho/2*(diag(alpha_Ni) - z_Ni.alpha_Ni)'...
-%                     *(diag(alpha_Ni) - z_Ni.alpha_Ni) + rho/2 ...
-%                     *(c_Ni - z_Ni.c_Ni)'*(c_Ni - z_Ni.c_Ni)];
-%        objective_i = objective_i + eTerm_L +  eTerm_Q;  
-        objective_i = objective_i + y_Ni.alpha_Ni'*(diag(alpha_Ni) - z_Ni.alpha_Ni) +...
-                   y_Ni.c_Ni'*(c_Ni - z_Ni.c_Ni)+ rho/2*...
-                  (diag(alpha_Ni) - z_Ni.alpha_Ni)'*(diag(alpha_Ni) - z_Ni.alpha_Ni)...
-                  +rho/2 *(c_Ni - z_Ni.c_Ni)'*(c_Ni - z_Ni.c_Ni);
-        
+       constraints_i = [constraints_i, eTerm_L == y_Ni.alpha_Ni'*(diag(alpha_Ni) ...
+                               - z_Ni.alpha_Ni) + y_Ni.c_Ni'*(c_Ni - z_Ni.c_Ni)];
+%
+       objective_i = objective_i + eTerm_L +  rho/2 * (diag(alpha_Ni) - z_Ni.alpha_Ni)'...
+                    *(diag(alpha_Ni) - z_Ni.alpha_Ni) + ...
+                    rho/2 *(c_Ni - z_Ni.c_Ni)'*(c_Ni - z_Ni.c_Ni);  
+    
         parameters_in = {z_Ni.x_Ni, z_Ni.x_eNi, z_Ni.alpha_Ni, z_Ni.c_Ni, ...
                  y_Ni.x_Ni, y_Ni.x_eNi,y_Ni.alpha_Ni, y_Ni.c_Ni};
              
         solutions_out = {Ui, Uei, di, X_Ni, X_eNi, X_Ni_mod, diag(alpha_Ni), c_Ni};
     else
-
         parameters_in = {z_Ni.x_Ni, z_Ni.x_eNi, y_Ni.x_Ni, y_Ni.x_eNi};
         solutions_out = {Ui, Uei, di, X_Ni, X_eNi};
     end
@@ -336,7 +308,7 @@ end
 
 function [constraints_i, objective_i] = dynamicsConstraintsAfterPnP(constraints_i, ...
                                         objective_i, N, i, param, Xi, X_Ni_mod,...
-                                        Ui, y_Ni, z_Ni, rho)
+                                        Ui, y_Ni, z_Ni, eX_Ni_mod_L, rho)
      
     % recompute neighbor set with parameters after Plug In / Plug Out
     neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
@@ -353,19 +325,19 @@ function [constraints_i, objective_i] = dynamicsConstraintsAfterPnP(constraints_
         constraints_i = [constraints_i, param.Gu_i{i} * Ui(:,n)...
                                    <= param.fu_i{i}]; 
         % Constraints for augmented Lagrangian
-%         constraints_i = [constraints_i, eX_Ni_mod_L(n-N+1) >= ...
-%                          y_Ni.x_Ni_mod(:,n-N+1)'*(X_Ni_mod(:,n-N+1)-...
-%                          z_Ni.x_Ni_mod(:,n-N+1)), eX_Ni_mod_Q(n-N+1) >= rho/2 *...
-%                          (X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1))'*...
-%                         (X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1))];
-          objective_i = objective_i + y_Ni.x_Ni_mod(:,n-N+1)'*(X_Ni_mod(:,n-N+1)-...
-                    z_Ni.x_Ni_mod(:,n-N+1))...
-                     + rho/2 *(X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1))'...
-                         *(X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1));
+        constraints_i = [constraints_i, eX_Ni_mod_L(n-N+1) == ...
+                         y_Ni.x_Ni_mod(:,n-N+1)'*(X_Ni_mod(:,n-N+1)-...
+                         z_Ni.x_Ni_mod(:,n-N+1))];
+ 
+        objective_i = objective_i + rho/2*(X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1))'*...
+                        (X_Ni_mod(:,n-N+1)-z_Ni.x_Ni_mod(:,n-N+1));
      end
      % Add to objective
-%      objective_i = objective_i + sum(eX_Ni_mod_L) + sum(eX_Ni_mod_Q);                                
+     objective_i = objective_i + sum(eX_Ni_mod_L);                               
 end
+
+
+
 
 function [constraints_i, objective_i] = dynamicsConstraintsBeforePnP(constraints_i,objective_i,...
                                         n, i, param, idx_Ni,Xi,X_Ni,Ui)

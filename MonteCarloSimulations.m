@@ -84,7 +84,7 @@ disp("Min eigenvalue dissipation rate"); disp(lambda);
 
 %% MPC CONTROLLER COMPARISON
 clear
-length_sim = 50; 
+length_sim = 25; 
 simStart = 1;
 utils = utilityFunctions; % utility function class
 PnP = SimFunctionsPnP; % simulation function class
@@ -146,39 +146,45 @@ for k=1:MC_iter
     % Run LQR
     config = "GENERAL";
     Ad = dguNet.global_sysd.A; Bd = dguNet.global_sysd.B; 
-    Q = 2*eye(size(Ad,1)); R = eye(size(Bd,2));
-    % LQR with offline design of Q and R
-%     dx0 = vertcat(x0_delta{:}) - vertcat(dguNet_delta.Xref{:});
-%     [Klqr, Pinf, ~] = dlqr(Ad, Bd, Q,R);
-%     [Xlqr,Ulqr] = PnP.sim_global_DGU(x0_delta, length_sim, dguNet_delta, -Klqr);
-%     cost_lqr_offline(k) = dx0'*Pinf*dx0;
-%     error_lqr_offline(k) = utils.tracking_error(Xlqr,Ulqr,config,dguNet_delta,activeDGU);
     % LQR with online design of Q and R
+    dx0 = vertcat(x0_delta{:}) - vertcat(dguNet_delta.Xref{:});
     [Klqr, Pinf, ~] = dlqr(Ad, Bd, blkdiag(Qi{:}), blkdiag(Ri{:}));
     [Xlqr,Ulqr] = PnP.sim_global_DGU(x0_delta, length_sim, dguNet_delta, -Klqr);
-    error_lqr_online(k) = utils.tracking_error(Xlqr,Ulqr,config,dguNet_delta,activeDGU);
-    cost_lqr_online(k) = dx0'*Pinf*dx0;
+    error_lqr(k) = utils.tracking_error(Xlqr,Ulqr,config,dguNet_delta,activeDGU);
+    cost_lqr(k) = dx0'*Pinf*dx0;
     
+    % Run MPCS
     config = "DISTRIBUTED";
-    [XdeltADMM, UdeltADMM, alphaEvolution, maxTimePerIter_delta(k)] = PnP.mpc_sim_DGU_delta(@mpc_delta, x0_delta,...
-                                                                                         length_sim, dguNet_delta, alpha, Q_Ni_delt, Ri_delt, Gamma_Ni);
-    %[Xdelt, Udelt,~,~] = PnP.mpc_sim_DGU_delta(@mpc_delta, x0_delta,...
-                                              %length_sim, dguNet_delta, alpha, Q_Ni_delt, Ri_delt, Gamma_Ni);                                             
+    %%%%%%%%%%%%%%%%%% Offline MPC
+    [XdeltADMM, UdeltADMM, alphaEvolution, maxTimePerIter_delta(k)] = PnP.mpc_sim_DGU_delta(@mpc_delta_admm, x0_delta,...
+                                                                                         length_sim, dguNet_delta, alpha, Q_Ni, Ri, Gamma_Ni);
     error_mpc_offline_ADMM(k) = utils.tracking_error(XdeltADMM,UdeltADMM,config,dguNet_delta,activeDGU);
-    %error_mpc_offline_Central(k) = utils.tracking_error(Xdelt,Udelt,config,dguNet_delta,activeDGU);
-    cost_mpc_offline(k) = utils.compute_QR_cost(XdeltADMM,UdeltADMM,blkdiag(Qi_delt{:}),blkdiag(Ri_delt{:}), ...
+    cost_mpc_offline_ADMM(k) = utils.compute_QR_cost(XdeltADMM,UdeltADMM, blkdiag(Qi{:}),blkdiag(Ri{:}), ...
+                                            "DISTRIBUTED", dguNet_delta.Xref , dguNet_delta.Uref);    
+                                        
+    [Xdelt, Udelt,~,~] = PnP.mpc_sim_DGU_delta(@mpc_delta, x0_delta,...
+                                              length_sim, dguNet_delta, alpha, Q_Ni, Ri, Gamma_Ni);                                             
+    error_mpc_offline_Central(k) = utils.tracking_error(Xdelt,Udelt,config,dguNet_delta,activeDGU);
+    cost_mpc_offline_Central(k) = utils.compute_QR_cost(Xdelt,Udelt, blkdiag(Qi{:}),blkdiag(Ri{:}), ...
                                             "DISTRIBUTED", dguNet_delta.Xref , dguNet_delta.Uref);
+                                                                          
+    %%%%%%%%%%%%%%%% ONLINE MPC  
+    [XADMM,UADMM, alphaEvol] = PnP.mpc_DGU_tracking(@trackingMPC_reconf_admm, x0, length_sim, dguNet, Q_Ni, Ri);
     
-    [XADMM,UADMM, alphaEvol] = PnP.mpc_DGU_tracking(@trackingMPC_reconf, x0, length_sim, dguNet, Q_Ni, Ri);
-    %[X,U, ~] = PnP.mpc_DGU_tracking(@trackingMPC_reconf, x0, length_sim, dguNet, Q_Ni, Ri);
-    cost_mpc_online(k) = utils.compute_QR_cost(XADMM,UADMM,blkdiag(Qi{:}),blkdiag(Ri{:}), ...
+    cost_mpc_online_ADMM(k) = utils.compute_QR_cost(XADMM,UADMM,blkdiag(Qi{:}),blkdiag(Ri{:}), ...
                                             "DISTRIBUTED", dguNet.Xref , dguNet.Uref);
     error_mpc_online_ADMM(k) = utils.tracking_error(XADMM,UADMM,config,dguNet,activeDGU);
+    
+    [X,U, ~] = PnP.mpc_DGU_tracking(@trackingMPC_reconf, x0, length_sim, dguNet, Q_Ni, Ri);
+    cost_mpc_online_Central(k) = utils.compute_QR_cost(X,U,blkdiag(Qi{:}),blkdiag(Ri{:}), ...
+                                            "DISTRIBUTED", dguNet.Xref , dguNet.Uref);
+    error_mpc_online_Central(k) = utils.tracking_error(X,U,config,dguNet,activeDGU);
+    
     %error_mpc_online_Central(k) = utils.tracking_error(X,U,config,dguNet,activeDGU);
-    suboptimality_index_offline(k) = (error_mpc_offline_ADMM(k) - error_lqr_offline(k))/error_lqr_offline(k);
-    suboptimality_index_online(k) = (error_mpc_online_ADMM(k) - error_lqr_online(k))/error_lqr_online(k);
-    suboptimality_cost_offline(k) = (cost_mpc_offline(k) - cost_lqr_offline(k))/cost_lqr_offline(k);
-    suboptimality_cost_online(k) =  (cost_mpc_online(k) - cost_lqr_online(k))/cost_lqr_online(k);
+%     suboptimality_index_offline(k) = (error_mpc_offline_ADMM(k) - error_lqr_offline(k))/error_lqr_offline(k);
+%     suboptimality_index_online(k) = (error_mpc_online_ADMM(k) - error_lqr_online(k))/error_lqr_online(k);
+    suboptimality_cost_offline(k) = (cost_mpc_offline_ADMM(k) - cost_lqr(k))/cost_lqr(k);
+    suboptimality_cost_online(k) =  (cost_mpc_online_ADMM(k) - cost_lqr(k))/cost_lqr(k);
 end
 %filename = 'subopt_x0_N10.mat';
 %save(filename)
@@ -246,7 +252,7 @@ Il6 = 0:1:10;
 MC_iter = length(Il6);
 for k=1:MC_iter
     %Vr(6) = Vr6(k);
-    Il(6) = Il6(k);
+    %Il(6) = Il6(k);
     Idrop = (maxI-minI)*rand(1,dguNet.nb_subsystems)+minI;
     Vdrop = (maxVr - minVr)*rand(1,dguNet.nb_subsystems)+ minVr;
     %Il = (maxIl - minIl)*rand(1,dguNet.nb_subsystems) + minIl;
@@ -331,8 +337,8 @@ end
 %         mean(SolverTime), std(SolverTime));
 % fprintf("Mean solver time for offline terminal ingredients = %d with std = %d", ...
 %         mean(SolverTimeDelta), std(SolverTimeDelta));
-filename = 'transition2refIl.mat';
-save(filename);
+% filename = 'transition2refIl.mat';
+% save(filename);
 
 % 
 % [X, U, lenSim, xs{k}, us{k},~, ~] = PnP.transitionPhase(x0, dguNet, dguNet2, Qi, Ri, costFunction, ADMM, 'true');

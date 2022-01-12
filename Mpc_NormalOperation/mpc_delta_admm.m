@@ -64,7 +64,7 @@ function [u0, Xend,timePerIter] = mpc_delta_admm(x0, alpha, Q_Ni, Ri, N, param)
                 s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
                 s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
             end
-            if r_norm{k} < 0.05 && s_norm{k} < 0.05
+            if r_norm{k} < 0.0015 && s_norm{k} < 0.0015
                 break;
             end
         end
@@ -108,8 +108,8 @@ function localOptimizer = init_optimizer(i, Q_Ni, Ri, N, param, rho)
     y_Ni.x_Ni = sdpvar(n_Ni, N ,'full');   
     alpha_i = sdpvar(1);
     % Constraint variables for the augmented Lagrangian
-%     eX_Ni_L = sdpvar(N,1,'full');  
-%     eX_Ni_Q = sdpvar(N,1,'full');  
+    eX_Ni_L = sdpvar(N,1,'full');  
+    eX_Ni_Q = sdpvar(N,1,'full');  
 
 
     % Variables for Dynamics and constraints
@@ -135,32 +135,24 @@ function localOptimizer = init_optimizer(i, Q_Ni, Ri, N, param, rho)
                                        n, i, param, idx_Ni, Xi, X_Ni,Ui, ....
                                        Q_Ni, Ri);
          % Constraints for augmented Lagrangian     
-%         constraints_i = [constraints_i, eX_Ni_L(n) >= y_Ni.x_Ni(:,n)'*...
-%                         (X_Ni(:,n)-z_Ni.x_Ni(:,n)), eX_Ni_Q(n) >= rho/2 * ...
-%                         (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n))];
-        % augmented Lagrangian         
-       objective_i = objective_i + y_Ni.x_Ni(:,n)'*(X_Ni(:,n)-z_Ni.x_Ni(:,n)) + ...
-                     rho/2 * (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n));
+        constraints_i = [constraints_i, eX_Ni_L(n) >= y_Ni.x_Ni(:,n)'*...
+                        (X_Ni(:,n)-z_Ni.x_Ni(:,n)), eX_Ni_Q(n) >= rho/2 * ...
+                        (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n))];
     end
     constraints_i = [constraints_i, X_Ni(idx_Ni,N) == Xi(:,N)]; 
     % Horizon 1-> N constraints for Lagrangian, added to objective function
-%     constraints_i = [constraints_i, eX_Ni_L(N) >= y_Ni.x_Ni(:,N)'*...
-%                     (X_Ni(:,N)-z_Ni.x_Ni(:,N)), eX_Ni_Q(N) >= rho/2 * ...
-%                     (X_Ni(:,N)-z_Ni.x_Ni(:,N))'*(X_Ni(:,N)-z_Ni.x_Ni(:,N))];
-%     objective_i = objective_i + sum(eX_Ni_L) + sum(eX_Ni_Q);
-    objective_i = objective_i + y_Ni.x_Ni(:,N)'*(X_Ni(:,N)-z_Ni.x_Ni(:,N)) + ...
-                   rho/2 * (X_Ni(:,N)-z_Ni.x_Ni(:,N))'*(X_Ni(:,N)-z_Ni.x_Ni(:,N));
-   
+    constraints_i = [constraints_i, eX_Ni_L(N) >= y_Ni.x_Ni(:,N)'*...
+                    (X_Ni(:,N)-z_Ni.x_Ni(:,N)), eX_Ni_Q(N) >= rho/2 * ...
+                    (X_Ni(:,N)-z_Ni.x_Ni(:,N))'*(X_Ni(:,N)-z_Ni.x_Ni(:,N))];
+    objective_i = objective_i + sum(eX_Ni_L) + sum(eX_Ni_Q);
+
     %% Terminal Set constraints
     % Add cost if we deviate from equilibrium state and if equilibrium state
     % deviates from the reference
-     %objective_i = objective_i + Xi(:,end)'*param.Pi{i}*Xi(:,end);
+     objective_i = objective_i + Xi(:,end)'*param.Pi{i}*Xi(:,end);
     %----- Terminal set condition (already alpha^1/2 passed as argument) --------% 
     % Mosek does not support sqrt(alpha) as parameter for the constraint ------%
-   %constraints_i = [constraints_i, norm(param.Pi{i}^(1/2)*Xi(:,end),2) <= alpha_i];
-   tSet = sdpvar(param.ni,1,'full');
-   constraints_i = [constraints_i, tSet==param.Pi{i}^(1/2)*Xi(:,end)];
-   constraints_i = [constraints_i, tSet'*tSet <= alpha_i];
+   constraints_i = [constraints_i, norm(param.Pi{i}^(1/2)*Xi(:,end),2) <= alpha_i];
     %--------------------------------------------------------------------------%
    
     ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
@@ -171,6 +163,7 @@ function localOptimizer = init_optimizer(i, Q_Ni, Ri, N, param, rho)
     localOptimizer = optimizer(constraints_i,objective_i,ops,parameters_in,solutions_out);
    
 end
+
 
 
 function [constraints_i, objective_i] = dynamicsConstraints(constraints_i,objective_i,...

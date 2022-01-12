@@ -11,7 +11,7 @@ function [u0, Xend,solveTime] = mpc_delta(x0, alpha, Q_Ni, Ri, N, param)
     if isempty(mpc_optimizer)
         mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param);
     end
-    [sol, ~, ~, ~, ~, feasibility]= mpc_optimizer(x0, sqrt(alpha));
+    [sol, ~, ~, ~, ~, feasibility]= mpc_optimizer(x0, alpha);
     if isequal(feasibility.problem,1)
         disp(feasibility.infostr);
     end
@@ -67,8 +67,12 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
         objective = objective + X{end}(:,i)'*param.Pi{i}*X{end}(:,i);
 %         constraints = [constraints, X{end}(:,i)'*param.Pi{i}*X{end}(:,i)...
 %                                   <= alpha_var(i)];
+%         tSet = sdpvar(param.ni,1,'full');
+%         constraints = [constraints, tSet == param.Pi{i}^(1/2)*X{end}(:,i)];
+%         constraints = [constraints, tSet'*tSet <= alpha_var(i)];
         constraints = [constraints, norm(param.Pi{i}^(1/2)*X{end}(:,i),2) <=...
-                        alpha_var(i)];
+                        sqrt(alpha_var(i))];
+        %constraints = [constraints, cone(param.Pi{i}^(1/2)*X{end}(:,i), sqrt(alpha_var(i)))];
 %         LMI_terminalSet = [inv(param.Pi{i})*alpha_var(i), X{end}(:,i);...
 %                         X{end}(:,i)', alpha_var(i)];
 %         constraints = [constraints, LMI_terminalSet >= 0];

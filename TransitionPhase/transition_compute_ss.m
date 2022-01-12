@@ -66,8 +66,8 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
         end
         % Objective
         if target == "reference"
-            objective = objective + (Xs(:,i)-paramAfter.Xref{i})'*...
-                                    (Xs(:,i)-paramAfter.Xref{i});
+            objective = objective + (Xs(:,i)-paramBefore.Xref{i})'*...
+                                    (Xs(:,i)-paramBefore.Xref{i});
         elseif target == "current state"
             objective = objective + (Xs(:,i)-x0(:,i))'*...
                                     (Xs(:,i)-x0(:,i));
@@ -107,8 +107,8 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
       
         % Equation 14: Approx of LMI with diagonal dominance
         PiInv = inv(paramAfter.Pi{i});
-        constraints = [constraints, (paramAfter.A_Ni{i}+paramAfter.Bi{i}*paramAfter.K_Ni{i})...
-                       *c_Ni{i} + paramAfter.Bi{i}*di(:,i) - ci(:,i) == bi(:,i)];
+        constraints = [constraints, -bi(:,i) <= (paramAfter.A_Ni{i}+paramAfter.Bi{i}*paramAfter.K_Ni{i})...
+                       *c_Ni{i} + paramAfter.Bi{i}*di(:,i) - ci(:,i) <= bi(:,i)];
         constraints = [constraints, alpha(i)-sumLambda_ij >= sum(bi(:,i))];    
         for k= 1:ni
             nondiag1 = sum(abs(PiInv(k,:))*alpha(i))- abs(PiInv(k,k))*alpha(i)+...
@@ -121,7 +121,7 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
                        sum(abs(paramAfter.A_Ni{i}(:,k)+ paramAfter.Bi{i}(:)*paramAfter.K_Ni{i}(k))*alpha(i));
             constraints = [constraints, sumLambdaP_ij(k,k) >= nondiag2];
         end
-        % Equation 11
+    %   Equation 11
         for k=1:size(paramAfter.Gx_Ni{i},1) 
             sum_GxNorm2 = 0;
             for j=1:length(neighbors_i)
@@ -133,7 +133,7 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
             constraints = [constraints, paramAfter.Gx_Ni{i}(k,:)*c_Ni{i} + sum_GxNorm2 ...
                             <= paramAfter.fx_Ni{i}(k)];    
         end
-        % Equation 12
+       % Equation 12
         for k=1:size(paramAfter.Gu_i{i},1) 
             sum_GuNorm2 = 0;
             for j=1:length(neighbors_i)
@@ -147,7 +147,7 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
                            <= paramAfter.fu_i{i}(k)];    
         end
         %% Horizon Loop
-        for n= N+1:1:2*N-1 % start from N here ? error in paper ?
+        for n= N:2*N-1 % start from N here ? error in paper ?
             X_Ni{i,n} = sdpvar(n_Ni,1,'full'); % neighbor set of state i
             constraints = [constraints, X_Ni{i,n} == ...
                                         reshape(X{n}(:,neighbors_i),[],1)];
@@ -156,6 +156,8 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
                                                        paramAfter.Bi{i}*U{n}(:,i)];
             constraints = [constraints, paramAfter.Gx_i{i} * X{n}(:,i)...
                                       <= paramAfter.fx_i{i}];
+%             constraints = [constraints, paramAfter.Gx_Ni{i} * X_Ni{i,n}...
+%                                   <= paramAfter.fx_Ni{i}];
            constraints = [constraints, paramAfter.Gu_i{i} * U{n}(:,i)...
                                        <= paramAfter.fu_i{i}];    
         end
@@ -165,9 +167,9 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
 %          constraints = [constraints, LMI_terminal >= 0];
 %         constraints = [constraints, (X{2*N}(:,i)-ci(i))'*paramAfter.Pi{i}*(X{2*N}(:,i)-ci(i))...
 %                                     <= alpha(i)^2];  
-       constraints = [constraints, norm(paramAfter.Pi{i}^(1/2)*(X{2*N}(:,i)-ci(i)),2) <= alpha(i)];
-      % constraints = [constraints, cone(paramAfter.Pi{i}^(1/2)*(X{2*N}(:,i)-ci(i)),alpha(i))];
-       constraints = [constraints, alpha(i) >= 0];
+      constraints = [constraints, norm(paramAfter.Pi{i}^(1/2)*(X{2*N}(:,i)-ci(i)),2) <= alpha(i)];
+     % constraints = [constraints, cone(paramAfter.Pi{i}^(1/2)*(X{2*N}(:,i)-ci(i)),alpha(i))];
+      constraints = [constraints, alpha(i) >= 0];
     end  
     % parameter for initial condition
     %constraints = [constraints, X{1} == X0];

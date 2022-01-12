@@ -187,7 +187,10 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
 %        constraints = [constraints, PiInv(2,2)*alpha(i) >= abs(PiInv(2,1)*alpha(i)) + ...
 %                        bound(2)];
 %        constraints = [constraints, alpha(i) >= sum(bound), -bound <= (X{end}(:,i) - ci(:,i)) <= bound];
-        
+%         tSet = sdpvar(param.ni,1,'full');
+%         constraints = [constraints, tSet== param.Pi{i}^(1/2)*(X{N}(:,i)-ci(:,i))];
+%         constraints = [constraints, tSet'*tSet <= alpha(i)^2];
+    %    constraints = [constraints, cone(param.Pi{i}^(1/2)*(X{N}(:,i)-ci(:,i)), alpha(i))];
         constraints = [constraints, norm(param.Pi{i}^(1/2)*(X{N}(:,i)-ci(:,i)),2) <= alpha(i)];
         constraints = [constraints, alpha(i) >= 0];% X{N}(:,i) == ci(:,i)];
     end        
