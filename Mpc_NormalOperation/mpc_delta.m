@@ -65,21 +65,13 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
         end
         % Terminal cost
         objective = objective + X{end}(:,i)'*param.Pi{i}*X{end}(:,i);
-%         constraints = [constraints, X{end}(:,i)'*param.Pi{i}*X{end}(:,i)...
-%                                   <= alpha_var(i)];
-%         tSet = sdpvar(param.ni,1,'full');
-%         constraints = [constraints, tSet == param.Pi{i}^(1/2)*X{end}(:,i)];
-%         constraints = [constraints, tSet'*tSet <= alpha_var(i)];
         constraints = [constraints, norm(param.Pi{i}^(1/2)*X{end}(:,i),2) <=...
                         sqrt(alpha_var(i))];
         %constraints = [constraints, cone(param.Pi{i}^(1/2)*X{end}(:,i), sqrt(alpha_var(i)))];
 %         LMI_terminalSet = [inv(param.Pi{i})*alpha_var(i), X{end}(:,i);...
 %                         X{end}(:,i)', alpha_var(i)];
 %         constraints = [constraints, LMI_terminalSet >= 0];
-    end    
-    % parameter for initial condition
-%     constraints = [constraints, X{1} == X0];
-    
+    end        
     %% Create optimizer object 
     ops = sdpsettings('verbose',1); %options
     parameters_in = {X0, alpha_var};

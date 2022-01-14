@@ -69,22 +69,27 @@ classdef utilityFunctions
         end 
        
         %% Compute Finite Cost given state, input, Q and R
-        function cost = compute_QR_cost(X,U,Q,R, config, Xref, Uref)
+        function cost = compute_QR_cost(X,U,Qblk,Rblk, config, Xref, Uref, Pblk)
             cost = 0;
             xref = vertcat(Xref{:});
             uref = vertcat(Uref{:});
-            for k=1:length(X)-1
-                if config == "DISTRIBUTED"
+   
+            if config == "DISTRIBUTED" 
+               for k=1:length(X)-1
                     x = reshape(X{k},[],1); u = U{k}';
-                    cost = cost + (x-xref)'*Q*(x-xref) + ...
-                                   (u-uref)'*R*(u-uref);
-                elseif config == "GENERAL"
-                    cost = cost + (X{k}-xref)'*Q*(X{k}-xref) + ...
-                                   (U{k}-uref)'*R*(U{k}-uref);
-                else 
-                    disp("WARNING: wrong config, choose general or distributed");
+                    cost = cost + (x-xref)'*Qblk*(x-xref) + ...
+                                   (u-uref)'*Rblk*(u-uref);
+               end
+               xend = reshape(X{end},[],1);
+               cost = cost+(xend-xref)'*Pblk*(xend-xref);
+            elseif config == "GENERAL"
+                for k=1:length(X)-1
+                    cost = cost + (X{k}-xref)'*Qblk*(X{k}-xref) + ...
+                                   (U{k}-uref)'*Rblk*(U{k}-uref);
                 end
-                    
+                cost = cost + (X{k}-xref)'*Pblk*(X{k}-xref);
+            else 
+                    disp("WARNING: wrong config, choose general or distributed");        
             end
         end
         
@@ -95,9 +100,9 @@ classdef utilityFunctions
             for k = 1:length(X)-1
                 if config == "DISTRIBUTED"
                     xref = horzcat(param.Xref{dgu2compute});
-                    err = err + sum((X{k}(2, dgu2compute)- xref(2,dgu2compute)).^2, 'all');%...
-%                           + sum((U{k}(dgu2compute)'- ...
-%                                  vertcat(param.Uref{dgu2compute})).^2);
+                    err = err + sum((X{k}(2, dgu2compute)- xref(2,dgu2compute)).^2, 'all')...
+                                + sum((U{k}(dgu2compute)'- ...
+                                    vertcat(param.Uref{dgu2compute})).^2);
                 elseif config == "GENERAL"
                     err = err + sum((X{k}- vertcat(param.Xref{:})).^2, 'all')...
                             + sum((U{k}-vertcat(param.Uref{:})).^2);

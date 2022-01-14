@@ -80,7 +80,7 @@ function [u0, alpha,timePerIter] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, para
                 s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
                 s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
             end
-            if r_norm{k} < 0.01 && s_norm{k} < 0.01
+            if r_norm{k} < 0.02 && s_norm{k} < 0.02
                 break;
             end
         end
@@ -141,10 +141,6 @@ function localOptimizer = init_optimizer(i, Q_Ni, Ri, N, param, rho)
     eX_eNi_L = sdpvar(1, 1, 'full');
     eTerm_L = sdpvar(1,1, 'full');
 
-    eX_Ni_Q = sdpvar(N,1,'full');  
-    eX_eNi_Q = sdpvar(1, 1, 'full');
-    eTerm_Q = sdpvar(1,1, 'full');
-
     % Variables for Dynamics and constraints
     Xi = sdpvar(ni,N, 'full');
     Ui = sdpvar(nu,N-1, 'full');
@@ -176,10 +172,9 @@ function localOptimizer = init_optimizer(i, Q_Ni, Ri, N, param, rho)
     constraints_i = [constraints_i, X_eNi(idx_Ni)==Xei];
     constraints_i = [constraints_i, Uei == param.K_Ni{i}*X_eNi + di];
     % Augmented Lagrangian constraints added to objective
-    constraints_i = [constraints_i, eX_eNi_Q >= y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi), ...
-                                    eX_eNi_L >= rho/2 * (X_eNi-z_Ni.x_eNi)'*...
-                                    (X_eNi-z_Ni.x_eNi)];
-    objective_i = objective_i + eX_eNi_L+ eX_eNi_Q ;
+    constraints_i = [constraints_i, eX_eNi_L == y_Ni.x_eNi'*(X_eNi-z_Ni.x_eNi)];
+    objective_i = objective_i + eX_eNi_L+ rho/2 * (X_eNi-z_Ni.x_eNi)'*...
+                                                   (X_eNi-z_Ni.x_eNi) ;
 
     %% Planning Horizon Loop
     for n = 1:N-1 
@@ -188,16 +183,17 @@ function localOptimizer = init_optimizer(i, Q_Ni, Ri, N, param, rho)
                                        n, i, param, idx_Ni, Xi, X_Ni,Ui, ....
                                        X_eNi, Uei, Q_Ni, Ri);
          % Constraints for augmented Lagrangian     
-        constraints_i = [constraints_i, eX_Ni_L(n) >= y_Ni.x_Ni(:,n)'*...
-                        (X_Ni(:,n)-z_Ni.x_Ni(:,n)), eX_Ni_Q(n) >= rho/2 * ...
-                        (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n))];
+        constraints_i = [constraints_i, eX_Ni_L(n) == y_Ni.x_Ni(:,n)'*...
+                                                     (X_Ni(:,n)-z_Ni.x_Ni(:,n))]; 
+                    
+       objective_i = objective_i + rho/2*(X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n));           
     end
     constraints_i = [constraints_i, X_Ni(idx_Ni,N) == Xi(:,N)]; 
     % Horizon 1-> N constraints for Lagrangian, added to objective function
-    constraints_i = [constraints_i, eX_Ni_L(N) >= y_Ni.x_Ni(:,N)'*...
-                    (X_Ni(:,N)-z_Ni.x_Ni(:,N)), eX_Ni_Q(N) >= rho/2 * ...
-                    (X_Ni(:,N)-z_Ni.x_Ni(:,N))'*(X_Ni(:,N)-z_Ni.x_Ni(:,N))];
-    objective_i = objective_i + sum(eX_Ni_L) + sum(eX_Ni_Q);
+    constraints_i = [constraints_i, eX_Ni_L(N) == y_Ni.x_Ni(:,N)'*...
+                                                 (X_Ni(:,N)-z_Ni.x_Ni(:,N))];
+    objective_i = objective_i + sum(eX_Ni_L)+ rho/2*(X_Ni(:,N)-z_Ni.x_Ni(:,N))'...
+                                                   *(X_Ni(:,N)-z_Ni.x_Ni(:,N)) ;
 
     %% Terminal Set constraints
     [constraints_i, alpha_Ni, c_Ni] = terminalConstraints(constraints_i, param,i,...
@@ -216,12 +212,11 @@ function localOptimizer = init_optimizer(i, Q_Ni, Ri, N, param, rho)
     constraints_i = [constraints_i, alpha_i(i) >= 0];
     %--------------------------------------------------------------------------%
     % Constraints for augmented Lagrangian are added to objective
-    constraints_i = [constraints_i, eTerm_L >= y_Ni.alpha_Ni'*(diag(alpha_Ni) ...
-                    - z_Ni.alpha_Ni) + y_Ni.c_Ni'*(c_Ni - z_Ni.c_Ni),...
-                    eTerm_Q >= rho/2*(diag(alpha_Ni) - z_Ni.alpha_Ni)'...
-                    *(diag(alpha_Ni) - z_Ni.alpha_Ni) + rho/2 ...
-                    *(c_Ni - z_Ni.c_Ni)'*(c_Ni - z_Ni.c_Ni)];
-    objective_i = objective_i + eTerm_L +  eTerm_Q;  
+   constraints_i = [constraints_i, eTerm_L == y_Ni.alpha_Ni'*(diag(alpha_Ni) ...
+                               - z_Ni.alpha_Ni) + y_Ni.c_Ni'*(c_Ni - z_Ni.c_Ni)];
+   objective_i = objective_i + eTerm_L +  rho/2 * (diag(alpha_Ni) - z_Ni.alpha_Ni)'...
+                    *(diag(alpha_Ni) - z_Ni.alpha_Ni) + ...
+                    rho/2 *(c_Ni - z_Ni.c_Ni)'*(c_Ni - z_Ni.c_Ni); 
 
     ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
     % Parameters to give to solver (updated global copy and lagrangians)

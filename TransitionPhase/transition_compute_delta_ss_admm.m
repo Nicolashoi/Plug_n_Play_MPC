@@ -29,7 +29,7 @@ function [xs, us, timePerIter] = transition_compute_delta_ss_admm(x0, N, paramBe
         elapsedTime = zeros(1,length(unionDGU));
         for i = unionDGU % loop over all subsystems
             [w_Ni{i,k}, vi{i,k}, elapsedTime(i)] = local_optim(i,k, x0, N, paramBefore, paramAfter,...
-                                 z_Ni{i,l}, y_Ni{i,l}, alpha(i), rho, target);
+                                 z_Ni{i,l}, y_Ni{i,l}, sqrt(alpha(i)), rho, target);
             
             % Obtain the sorted list of neighbors of system i: this list will be
             % used to update the local copies of each decision variable. The

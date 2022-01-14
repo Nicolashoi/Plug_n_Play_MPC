@@ -162,17 +162,10 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
                                        <= paramAfter.fu_i{i}];    
         end
         %%  Terminal Set condition
-%          LMI_terminal = [inv(paramAfter.Pi{i})*alpha(i), X{2*N}(:,i) - ci(i);...
-%                         X{2*N}(:,i)' - ci(i)', alpha(i)];
-%          constraints = [constraints, LMI_terminal >= 0];
-%         constraints = [constraints, (X{2*N}(:,i)-ci(i))'*paramAfter.Pi{i}*(X{2*N}(:,i)-ci(i))...
-%                                     <= alpha(i)^2];  
-      constraints = [constraints, norm(paramAfter.Pi{i}^(1/2)*(X{2*N}(:,i)-ci(i)),2) <= alpha(i)];
-     % constraints = [constraints, cone(paramAfter.Pi{i}^(1/2)*(X{2*N}(:,i)-ci(i)),alpha(i))];
-      constraints = [constraints, alpha(i) >= 0];
+        constraints = [constraints, norm(paramAfter.Pi{i}^(1/2)*(X{2*N}(:,i)-ci(i)),2) <= alpha(i)];
+          % constraints = [constraints, cone(paramAfter.Pi{i}^(1/2)*(X{2*N}(:,i)-ci(i)),alpha(i))];
+        constraints = [constraints, alpha(i) >= 0];
     end  
-    % parameter for initial condition
-    %constraints = [constraints, X{1} == X0];
     
     %% Create optimizer object 
     ops = sdpsettings('solver', 'MOSEK', 'verbose',2); %options

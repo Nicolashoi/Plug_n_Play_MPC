@@ -25,7 +25,7 @@ function [u0, Xend,timePerIter] = mpc_delta_admm(x0, alpha, Q_Ni, Ri, N, param)
         for i=param.activeDGU % for each subsystems
             % Solve a local optimizati% Loop while terminal terminal time not overrunnedon problem for each subsystem i
             [w_Ni{i,k}, vi{i,k}, elapsedTime(i)] = local_optim(localOptimizer{i}, x0,...
-                                                 z_Ni{i,l}, y_Ni{i,l}, alpha(i));
+                                                 z_Ni{i,l}, y_Ni{i,l}, sqrt(alpha(i)));
       
             % Obtain the sorted list of neighbors of system i
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
@@ -64,7 +64,7 @@ function [u0, Xend,timePerIter] = mpc_delta_admm(x0, alpha, Q_Ni, Ri, N, param)
                 s_struct = diff_struct(z_Ni{i,k}, z_Ni{i,k-1});
                 s_norm{k} = s_norm{k}+ N*rho^2*sum(vecnorm(s_struct.x_Ni,2));
             end
-            if r_norm{k} < 0.0015 && s_norm{k} < 0.0015
+            if r_norm{k} < 0.02 && s_norm{k} < 0.02
                 break;
             end
         end
@@ -135,22 +135,18 @@ function localOptimizer = init_optimizer(i, Q_Ni, Ri, N, param, rho)
                                        n, i, param, idx_Ni, Xi, X_Ni,Ui, ....
                                        Q_Ni, Ri);
          % Constraints for augmented Lagrangian     
-        constraints_i = [constraints_i, eX_Ni_L(n) >= y_Ni.x_Ni(:,n)'*...
-                        (X_Ni(:,n)-z_Ni.x_Ni(:,n)), eX_Ni_Q(n) >= rho/2 * ...
-                        (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n))];
+        constraints_i = [constraints_i, eX_Ni_L(n) == y_Ni.x_Ni(:,n)'*(X_Ni(:,n)-z_Ni.x_Ni(:,n))];
+        objective_i = objective_i + rho/2 * (X_Ni(:,n)-z_Ni.x_Ni(:,n))'*(X_Ni(:,n)-z_Ni.x_Ni(:,n));
     end
     constraints_i = [constraints_i, X_Ni(idx_Ni,N) == Xi(:,N)]; 
     % Horizon 1-> N constraints for Lagrangian, added to objective function
-    constraints_i = [constraints_i, eX_Ni_L(N) >= y_Ni.x_Ni(:,N)'*...
-                    (X_Ni(:,N)-z_Ni.x_Ni(:,N)), eX_Ni_Q(N) >= rho/2 * ...
-                    (X_Ni(:,N)-z_Ni.x_Ni(:,N))'*(X_Ni(:,N)-z_Ni.x_Ni(:,N))];
-    objective_i = objective_i + sum(eX_Ni_L) + sum(eX_Ni_Q);
+    constraints_i = [constraints_i, eX_Ni_L(N) == y_Ni.x_Ni(:,N)'*(X_Ni(:,N)-z_Ni.x_Ni(:,N))];
+    objective_i = objective_i + sum(eX_Ni_L) + rho/2 * (X_Ni(:,N)-z_Ni.x_Ni(:,N))'*...
+                                                       (X_Ni(:,N)-z_Ni.x_Ni(:,N));
 
     %% Terminal Set constraints
-    % Add cost if we deviate from equilibrium state and if equilibrium state
-    % deviates from the reference
      objective_i = objective_i + Xi(:,end)'*param.Pi{i}*Xi(:,end);
-    %----- Terminal set condition (already alpha^1/2 passed as argument) --------% 
+    %----- Terminal set condition (already alpha^1/2 passed as argument)  --------% 
     % Mosek does not support sqrt(alpha) as parameter for the constraint ------%
    constraints_i = [constraints_i, norm(param.Pi{i}^(1/2)*Xi(:,end),2) <= alpha_i];
     %--------------------------------------------------------------------------%

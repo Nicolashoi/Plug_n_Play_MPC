@@ -1,7 +1,7 @@
 classdef SimFunctionsPnP
     methods (Static)
         %% ------------------ COMPUTE PASSIVE GAINS ---------------------------%
-        function [obj, lambda, feasibility] = setPassiveControllers(obj)
+        function [obj, lambda, feasibility, Gamma_i] = setPassiveControllers(obj)
             lambda_i = zeros(1,length(obj.activeDGU));
             feasibility = 1;
             for i= obj.activeDGU
@@ -161,7 +161,7 @@ classdef SimFunctionsPnP
             n = 1;
             if regulation
                 while any(abs(X{n}(1,paramBefore.activeDGU) - xs(1,paramBefore.activeDGU)) > 1e-2) || ...
-                      any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 1e-2)    
+                      any(abs(X{n}(2,paramBefore.activeDGU) - xs(2,paramBefore.activeDGU)) > 5e-2)    
                         % control input is of size nu x M 
                         if ADMM
                             U{n} = regulation2ss_admm(X{n}, N, paramBefore, xs, us, Qi, Ri); % get first control input

@@ -28,7 +28,7 @@ for i=1:nb_subsystems
 end
 dguNet = dguNet.initDynamics();
 %R36 = 0.005:0.05:5; % no QI, Ri found for R36 < 0.6 for passivity to guarante asympt. stability
-R36 = 0.36;
+R36 = 0.36
 Qi = cell(1,length(R36)); Ri = cell(1,length(R36)); lambda = zeros(1, length(R36));
 costPassivity = zeros(1,length(R36)); costLQR = zeros(1,length(R36));
 feasiblePass = zeros(length(R36),1); traceP3_pass = zeros(length(R36),1);
@@ -44,8 +44,11 @@ for i = 1:length(R36)
     config = "DISTRIBUTED";
     [~, Q_Ni, Ri, Qi] = utils.tuningParam(dguNet, delta_config, false);
     [~, ~, ~,feasibleLyap(i)] = offlineComputeTerminalSet(Q_Ni, Ri, dguNet);
-    [dguNet, lambda(i), feasiblePass(i)] = sim.setPassiveControllers(dguNet);
-    
+    [dguNet, lambda(i), feasiblePass(i), Gamma] = sim.setPassiveControllers(dguNet);
+    traceP3_pass(i) = trace(dguNet.Pi{3});
+    traceP6_pass(i) = trace(dguNet.Pi{6});
+    traceGamma3(i) = trace(Gamma{3});
+    traceGamma6(i) = trace(Gamma{6});
     fprintf("%d feasible states for passivity out of %d tested connection strengths \n ", sum(feasiblePass), length(R36));
     fprintf("%d feasible states for lyapunov out of %d tested connection strengths \n", sum(feasibleLyap), length(R36));
 
@@ -53,27 +56,42 @@ end
 set(groot,'defaultfigureposition',[400 250 750 550])
 figure()
  plot(R36(logical(feasiblePass)), traceP3_pass(logical(feasiblePass)), 'b-o')
- hold on
- 
  xlabel('$R_{36}$ in $\Omega$', 'interpreter', 'latex', 'FontSize',16);
- ylabel('$trace(P_3)$', 'interpreter', 'latex','FontSize', 16);
- title("Evolution of trace(P_3)", 'FontSize', 16);
+  ylabel('$trace(P_i)$', 'interpreter', 'latex','FontSize', 16);
+ hold on
  grid on
-plot(R36(logical(feasiblePass)), traceP3_lyap(logical(feasiblePass)), 'b-s')
-legend("Passivity", "Lyapunov",'FontSize', 16)
-hold off
+ plot(R36(logical(feasiblePass)), traceP6_pass(logical(feasiblePass)), 'r-o')
+ legend("$trace(P_3)$", "$trace(P_6)$", 'interpreter', 'latex', 'FontSize', 16, 'Location', 'northwest');
+ hold off
+%  hold on
+%  
+figure()
+ plot(R36(logical(feasiblePass)), traceGamma3(logical(feasiblePass)), 'b-o')
+ xlabel('$R_{36}$ in $\Omega$', 'interpreter', 'latex', 'FontSize',16);
+  ylabel('$trace(\Gamma_i)$', 'interpreter', 'latex','FontSize', 16);
+ hold on
+ grid on
+ plot(R36(logical(feasiblePass)), traceGamma6(logical(feasiblePass)), 'r-o')
+ legend("$trace(\Gamma_3)$", "$trace(\Gamma_6)$", 'interpreter', 'latex', 'FontSize', 16, 'Location', 'northwest');
+ hold off
+
+%  title("Evolution of trace(P_3)", 'FontSize', 16);
+%  grid on
+% plot(R36(logical(feasiblePass)), traceP3_lyap(logical(feasiblePass)), 'b-s')
+% legend("Passivity", "Lyapunov",'FontSize', 16)
+% hold off
 figure()
 plot(R36(logical(feasiblePass)), traceP6_pass(logical(feasiblePass)), 'r-o')
-hold on
-grid on
- 
- xlabel('$R_{36}$ in $\Omega$', 'interpreter', 'latex', 'FontSize', 16);
- ylabel('$trace(P_6)$', 'interpreter', 'latex','FontSize', 16);
- title("Evolution of trace(P_6)",'FontSize', 16);
- grid on
-plot(R36(logical(feasiblePass)), traceP6_lyap(logical(feasiblePass)), 'r-s')
-legend("Passivity", "Lyapunov",'FontSize', 16)
-hold off
+% hold on
+% grid on
+%  
+%  xlabel('$R_{36}$ in $\Omega$', 'interpreter', 'latex', 'FontSize', 16);
+%  ylabel('$trace(P_6)$', 'interpreter', 'latex','FontSize', 16);
+%  title("Evolution of trace(P_6)",'FontSize', 16);
+%  grid on
+% plot(R36(logical(feasiblePass)), traceP6_lyap(logical(feasiblePass)), 'r-s')
+% legend("Passivity", "Lyapunov",'FontSize', 16)
+% hold off
 % suboptIdx = (error_pass-error_lqr)./error_lqr;
 % meanSubopt = mean(suboptIdx);
 % stdSubopt = std(suboptIdx);
@@ -100,7 +118,7 @@ Rij_mat = Rij_mat + tril(Rij_mat',1); % symmetric matrix for undirected graph
 dguNet = dguNet.setConnectionsGraph(Rij_mat);
 dguNet = dguNet.setActiveDGU(activeDGU);
 Vr = linspace(49.95, 50.05, nb_subsystems);% references
-MC_iter = 1;
+MC_iter = 50;
 maxTimePerIter_delta = zeros(1,MC_iter); error_lqr_offline = zeros(1,MC_iter);
 error_lqr_online = zeros(1,MC_iter);
 error_mpc_offline_ADMM = zeros(1,MC_iter); suboptimality_index_offline = zeros(1,MC_iter);
@@ -120,11 +138,11 @@ for k=1:MC_iter
     Idrop = (maxI-minI)*rand(1,dguNet.nb_subsystems)+minI;
     x0 = cell(1, dguNet.nb_subsystems); x0_delta = cell(1,dguNet.nb_subsystems);
     for i = 1:dguNet.nb_subsystems
-%         x0_delta{i} = [50+Vdrop(i);5]; % initial condition in normal coordinates
-%         x0{i} = [50+Vdrop(i);5-dguNet.Il(i)]; % second state is Ii - Il
-        x0_delta{i} = [50;5]; % initial condition in normal coordinates
-        x0{i} = [50;5-dguNet.Il(i)]; % second state is Ii - Il
-        dguNet.Vr(i) = dguNet.Vr(i) + Vdrop(i);
+        x0_delta{i} = [50+Vdrop(i);5+Idrop(i)]; % initial condition in normal coordinates
+        x0{i} = [50+Vdrop(i);5+Idrop(i)-dguNet.Il(i)]; % second state is Ii - Il
+%         x0_delta{i} = [50;5]; % initial condition in normal coordinates
+%         x0{i} = [50;5-dguNet.Il(i)]; % second state is Ii - Il
+%         dguNet.Vr(i) = dguNet.Vr(i) + Vdrop(i);
     end
 
     % set Passivity Gains
@@ -156,73 +174,71 @@ for k=1:MC_iter
     % Run MPCS
     config = "DISTRIBUTED";
     %%%%%%%%%%%%%%%%%% Offline MPC
-    [XdeltADMM, UdeltADMM, alphaEvolution, maxTimePerIter_delta(k)] = PnP.mpc_sim_DGU_delta(@mpc_delta_admm, x0_delta,...
-                                                                                         length_sim, dguNet_delta, alpha, Q_Ni, Ri, Gamma_Ni);
-    error_mpc_offline_ADMM(k) = utils.tracking_error(XdeltADMM,UdeltADMM,config,dguNet_delta,activeDGU);
-    cost_mpc_offline_ADMM(k) = utils.compute_QR_cost(XdeltADMM,UdeltADMM, blkdiag(Qi{:}),blkdiag(Ri{:}), ...
-                                            "DISTRIBUTED", dguNet_delta.Xref , dguNet_delta.Uref);    
+%     [XdeltADMM, UdeltADMM, alphaEvolution, maxTimePerIter_delta(k)] = PnP.mpc_sim_DGU_delta(@mpc_delta_admm, x0_delta,...
+%                                                                                          length_sim, dguNet_delta, alpha, Q_Ni, Ri, Gamma_Ni);
+%     error_mpc_offline_ADMM(k) = utils.tracking_error(XdeltADMM,UdeltADMM,config,dguNet_delta,activeDGU);
+%     cost_mpc_offline_ADMM(k) = utils.compute_QR_cost(XdeltADMM,UdeltADMM, blkdiag(Qi{:}),blkdiag(Ri{:}), ...
+%                                             "DISTRIBUTED", dguNet_delta.Xref , dguNet_delta.Uref, ...
+%                                                  blkdiag(dguNet_delta.Pi{:}));    
                                         
     [Xdelt, Udelt,~,~] = PnP.mpc_sim_DGU_delta(@mpc_delta, x0_delta,...
                                               length_sim, dguNet_delta, alpha, Q_Ni, Ri, Gamma_Ni);                                             
     error_mpc_offline_Central(k) = utils.tracking_error(Xdelt,Udelt,config,dguNet_delta,activeDGU);
     cost_mpc_offline_Central(k) = utils.compute_QR_cost(Xdelt,Udelt, blkdiag(Qi{:}),blkdiag(Ri{:}), ...
-                                            "DISTRIBUTED", dguNet_delta.Xref , dguNet_delta.Uref);
+                                            "DISTRIBUTED", dguNet_delta.Xref , dguNet_delta.Uref,...
+                                            blkdiag(dguNet_delta.Pi{:}));
                                                                           
     %%%%%%%%%%%%%%%% ONLINE MPC  
-    [XADMM,UADMM, alphaEvol] = PnP.mpc_DGU_tracking(@trackingMPC_reconf_admm, x0, length_sim, dguNet, Q_Ni, Ri);
-    
-    cost_mpc_online_ADMM(k) = utils.compute_QR_cost(XADMM,UADMM,blkdiag(Qi{:}),blkdiag(Ri{:}), ...
-                                            "DISTRIBUTED", dguNet.Xref , dguNet.Uref);
-    error_mpc_online_ADMM(k) = utils.tracking_error(XADMM,UADMM,config,dguNet,activeDGU);
-    
+%     [XADMM,UADMM, alphaEvol] = PnP.mpc_DGU_tracking(@trackingMPC_reconf_admm, x0, length_sim, dguNet, Q_Ni, Ri);
+%     
+%     cost_mpc_online_ADMM(k) = utils.compute_QR_cost(XADMM,UADMM,blkdiag(Qi{:}),blkdiag(Ri{:}), ...
+%                                             "DISTRIBUTED", dguNet.Xref , dguNet.Uref, ...
+ %                                               blkdiag(dguNet.Pi{:}) );
+%     error_mpc_online_ADMM(k) = utils.tracking_error(XADMM,UADMM,config,dguNet,activeDGU);
+%     
     [X,U, ~] = PnP.mpc_DGU_tracking(@trackingMPC_reconf, x0, length_sim, dguNet, Q_Ni, Ri);
     cost_mpc_online_Central(k) = utils.compute_QR_cost(X,U,blkdiag(Qi{:}),blkdiag(Ri{:}), ...
-                                            "DISTRIBUTED", dguNet.Xref , dguNet.Uref);
+                                            "DISTRIBUTED", dguNet.Xref , dguNet.Uref, ...
+                                            blkdiag(dguNet.Pi{:}));
     error_mpc_online_Central(k) = utils.tracking_error(X,U,config,dguNet,activeDGU);
     
     %error_mpc_online_Central(k) = utils.tracking_error(X,U,config,dguNet,activeDGU);
 %     suboptimality_index_offline(k) = (error_mpc_offline_ADMM(k) - error_lqr_offline(k))/error_lqr_offline(k);
 %     suboptimality_index_online(k) = (error_mpc_online_ADMM(k) - error_lqr_online(k))/error_lqr_online(k);
-    suboptimality_cost_offline(k) = (cost_mpc_offline_ADMM(k) - cost_lqr(k))/cost_lqr(k);
-    suboptimality_cost_online(k) =  (cost_mpc_online_ADMM(k) - cost_lqr(k))/cost_lqr(k);
+    suboptimality_cost_offline(k) = (cost_mpc_offline_Central(k) - cost_lqr(k))/cost_lqr(k);
+    suboptimality_cost_online(k) =  (cost_mpc_online_Central(k) - cost_lqr(k))/cost_lqr(k);
 end
-%filename = 'subopt_x0_N10.mat';
-%save(filename)
+filename = 'subopt_x0_N25.mat';
+save(filename)
 
 %% Create boxPlot
-load subopt_x0
+load subopt_x0_N25
 suboptCost_offline_x0 = suboptimality_cost_offline;
 suboptCost_online_x0= suboptimality_cost_online;
-eOffline_x0 = error_mpc_offline_ADMM;
-eOnline_x0 = error_mpc_online_ADMM;
-load subopt_x0_N10
-suboptCost_offline_x0_N10 = suboptimality_cost_offline;
-suboptCost_online_x0_N10= suboptimality_cost_online;
-eOffline_x0_N10 = error_mpc_offline_ADMM;
-eOnline_x0_N10 = error_mpc_online_ADMM;
-load subopt_Vr
+eOffline_x0 = error_mpc_offline_Central;
+eOnline_x0 = error_mpc_online_Central;
+
+load subopt_Vr_N25
 suboptCost_offline_Vr = suboptimality_cost_offline;
 suboptCost_online_Vr= suboptimality_cost_online;
-eOffline_Vr = error_mpc_offline_ADMM;
-eOnline_Vr = error_mpc_online_ADMM;
-load subopt_Vr_N10
-suboptCost_offline_Vr_N10 = suboptimality_cost_offline;
-suboptCost_online_Vr_N10= suboptimality_cost_online;
-eOffline_Vr_N10 = error_mpc_offline_ADMM;
-eOnline_Vr_N10 = error_mpc_online_ADMM;
+eOffline_Vr = error_mpc_offline_Central;
+eOnline_Vr = error_mpc_online_Central;
+
 figure()
 boxplot([suboptCost_offline_x0',suboptCost_online_x0' suboptCost_offline_Vr',suboptCost_online_Vr'],...
         'Labels', {'$J_{DS}^{x0}$', '$J_{RTI}^{x0}$', '$J_{DS}^{Vr}$', '$J_{RTI}^{Vr}$' });
 hold on
 ylabel("Cost optimality index")
 grid on
-set(gca,'TickLabelInterpreter','latex', 'FontSize', 16, 'FontWeight', 'bold');
+grid(gca,'minor')
+set(gca,'TickLabelInterpreter','latex', 'FontSize', 16);
 hold off
 figure()
 boxplot([eOffline_x0', eOnline_x0', eOffline_Vr', eOnline_Vr'], ...
         'Labels', {'$e_{DS}^{x0}$', '$e_{RTI}^{x0}$', '$e_{DS}^{Vr}$', '$e_{RTI}^{Vr}$' });
 hold on
 grid on
+grid(gca,'minor')
 set(gca,'TickLabelInterpreter','latex', 'FontSize', 16);
 ylabel("Tracking error")
 hold off
@@ -247,12 +263,16 @@ maxVr = 0.5; minVr = -0.5;
 maxIl = 7.5; minIl = 2.5;
 maxI = 2; minI = -2;
 Il = linspace(2.5, 7.5, nb_subsystems);
-Vr6 = 49.1:0.1:51;
+Vr6 = 49:0.1:51;
 Il6 = 0:1:10;
-MC_iter = length(Il6);
+%MC_iter = length(Il6);
 for k=1:MC_iter
     %Vr(6) = Vr6(k);
+    Vr(6) = 49;
+    Vr(3) = 49;
     %Il(6) = Il6(k);
+%     Il(6) = 10;
+%     Il(3) = 10;
     Idrop = (maxI-minI)*rand(1,dguNet.nb_subsystems)+minI;
     Vdrop = (maxVr - minVr)*rand(1,dguNet.nb_subsystems)+ minVr;
     %Il = (maxIl - minIl)*rand(1,dguNet.nb_subsystems) + minIl;
@@ -319,13 +339,13 @@ for k=1:MC_iter
                                       dguNet2_delta, Qi_delt, Ri_delt,costFunction, alpha_delt, regulation);
     %xs = xs(2,:) + dguNet2.Il; % add load currents
     if strcmp(costFunction, 'reference')
-        costOnlineTransitionRef(k) =  norm(xs{k}-horzcat(dguNet2.Xref{:}),2);
-        costDeltaTransitionRef(k) =  norm(xs_delt{k}-horzcat(dguNet2_delta.Xref{:}),2);
+        costOnlineTransitionRef(k) =  norm(xs{k}-horzcat(dguNet2.Xref{:}),2)^2;
+        costDeltaTransitionRef(k) =  norm(xs_delt{k}-horzcat(dguNet2_delta.Xref{:}),2)^2;
         CostRelativeDiffRef(k) = (costOnlineTransitionRef(k) - costDeltaTransitionRef(k))./...
                                 min(costOnlineTransitionRef(k), costDeltaTransitionRef(k))*100;
     elseif strcmp(costFunction, 'current state')
-        costOnlineTransitionx0(k) =  norm(xs{k}-horzcat(x0{:}),2);
-        costDeltaTransitionx0(k) =  norm(xs_delt{k}-horzcat(x0_delta{:}),2);
+        costOnlineTransitionx0(k) =  norm(xs{k}-horzcat(x0{:}),2)^2;
+        costDeltaTransitionx0(k) =  norm(xs_delt{k}-horzcat(x0_delta{:}),2)^2;
         CostRelativeDiffx0(k) = (costOnlineTransitionx0(k) - costDeltaTransitionx0(k))./...
                                 min(costOnlineTransitionx0(k), costDeltaTransitionx0(k))*100;
     else
@@ -337,7 +357,7 @@ end
 %         mean(SolverTime), std(SolverTime));
 % fprintf("Mean solver time for offline terminal ingredients = %d with std = %d", ...
 %         mean(SolverTimeDelta), std(SolverTimeDelta));
-% filename = 'transition2refIl.mat';
+% filename = 'transitionTox0ExtremeIl.mat';
 % save(filename);
 
 % 
@@ -371,5 +391,26 @@ end
 % hold off
 %%
 clear
-load transition2refNew
-load transition2x0
+load transitionTox0ExtremeIl
+figure()
+plot(Il6,costOnlineTransitionx0, '--s', 'Markersize',8)
+hold on
+plot(Il6(1:end-1), costDeltaTransitionx0, '--*','Markersize', 8)
+grid on
+xlabel("Load current of DGU 6 in [A]");
+ylabel("Associated cost");
+legend("RTI", "DS", "location", "southeast");
+title("Cost $f_{s,x0}$", "interpreter", "latex", "Fontsize", 12);
+hold off
+% 
+% load transitionToVrIncrement.mat
+% figure()
+% plot(Vr6,costOnlineTransitionRef, '--s', 'Markersize',8)
+% hold on
+% plot(Vr6, costDeltaTransitionRef, '--*','Markersize', 8)
+% grid on
+% xlabel("Reference voltage of DGU 6 in [V]");
+% ylabel("Associated cost");
+% legend("RTI", "DS", "location", "southeast");
+% title("Cost $f_{s,ref}$", "interpreter", "latex", "Fontsize", 12);
+% hold off

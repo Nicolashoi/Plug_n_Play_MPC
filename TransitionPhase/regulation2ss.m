@@ -54,10 +54,7 @@ function mpc_optimizer = init_optimizer(N, param, xs, us, Qi, Ri)
                         (U{n}(:,i)-us(:,i))'*Ri{i}*(U{n}(:,i)-us(:,i));                    
         end
         constraints = [constraints, X{end}(:,i) == xs(:,i)];
-    end    
-    % parameter for initial condition
-    %constraints = [constraints, X{1} == X0];
-    
+    end        
     %% Create optimizer object 
     ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
     parameters_in = {X0};
