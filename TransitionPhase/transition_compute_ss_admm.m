@@ -1,4 +1,37 @@
+%% Transition phase MPC based on online terminal ingredients with ADMM
+% Author:
+%   Nicolas Hoischen
+% BRIEF: 
+    % Implementation of the transition phase algorithm to find a feasible state
+    % before plug-in or plug-out of a subsystem.
+    % Based on M.N. Zeilinger et al. “Plug and play distributed model predictive 
+    % control based on distributed invariance and optimization”. 
+    % In: 52nd IEEE Conference on Decision and Control.
+    % Suited if the redesign phase has been carried out with the passivity
+    % controller.
+    % Implementents the online terminal ingredients for the terminal set
+    % invariant constraints (i.e. computes the terminal set size & costs online)
+    % as described in: Ahmed Aboudonia et al. 
+    % Online Computation of Terminal Ingredients in Distributed Model
+    % Predictive Control for Reference Tracking
+    % solved using ADMM
+  
+% INPUT: 
+    % x0: Initial state
+    % N: Horizon
+    % paramBefore: DGU system class with old network configuration (before PnP
+    % operation
+    % paramAfter: DGU system class with new network configuration (after PnP
+    % operation
+    % target: Cost function to be minimized, whether distance to current state
+    % or distance to references is minimized
+% OUTPUT:
+    % xs: found steady state
+    % us: found steady control input
+    % alpha: terminal set size matrix for each subsystem
+    % timerPerIter: average maximum time in an iteration of ADMM   
 
+%% Main ADMM Function
 function [xs, us, alpha, timePerIter] = transition_compute_ss_admm(x0, N, paramBefore, ...
                                                            paramAfter, target)
     rho = 0.25;

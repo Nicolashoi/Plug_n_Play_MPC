@@ -1,15 +1,29 @@
-%% Algorithm 1: Offline distributed MPC synthesis
+%% Offline MPC synthesis: compute Terminal Set size
 % Author:
 %   Nicolas Hoischen
 % BRIEF:
-%  
+    % Compute the terminal set size and matrices Gamma for each subsystem i
+    % (offline) in the redesign phase of the PnP algorithm. 
+    % Inspired from: Christian Conte et al.
+    % “Distributed synthesis and control of constrained linear systems”.
+    % In: 2012 American Control Conference (ACC)
+% INPUT:
+    % Q_Ni: free choice of user as state weight matrix of the local cost
+    % Ri: free choice of user as input weight matrix of the local cost
+    % obj: DGU system class 
+% OUTPUT:
+    % obj: DGU system class with modified K_Ni and Pi
+    % Gamma_Ni: to use later in online MPC to scale terminal set size
+    % alpha_i: initial set size of subsystem i
+    % feasible: boolean true if problem is feasible
+
+%%
 function [obj, Gamma_Ni, alpha_i, feasibility] = offlineComputeTerminalSet(Q_Ni, Ri, obj)
     % system choice
     M = length(obj.activeDGU);%param.nb_subsystems;
     [Pi, P_Ni, K_Ni, Gamma_Ni, feasibility] = terminal_costs_lyapunov_based(Q_Ni, Ri, obj);
     % Set controllers 
     obj.Pi = Pi;
-    %traceP3 = trace(Pi{3}); traceP6 = trace(Pi{6});
     obj.K_Ni = K_Ni;
     %% LP (equation 32 of the paper)
     constraints = []; % initialize constraints

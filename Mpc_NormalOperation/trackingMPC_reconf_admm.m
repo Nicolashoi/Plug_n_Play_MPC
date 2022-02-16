@@ -1,3 +1,22 @@
+%% Online Terminal Ingredients MPC, ADMM implementation
+% Author:
+%   Nicolas Hoischen
+% BRIEF: 
+    % Distributed MPC with online terminal ingredients solved with ADMM
+    % Following Ahmed Aboudonia et al. 
+    % Online Computation of Terminal Ingredients in Distributed Model
+    % Predictive Control for Reference Tracking.
+% INPUT: 
+    % x0: Initial state
+    % Q_Ni, Ri: MPC local cost matrices
+    % N: Horizon
+    % param: DGU system class 
+% OUTPUT:
+    % u0: first control input
+    % alpha: terminal set size
+    % timerPerIter: average maximum time in an iteration of ADMM
+    
+%% Main ADMM Function
 function [u0, alpha,timePerIter] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, param)
     rho = 0.25;
     Tk = 0; k = 2; l=1;
@@ -101,6 +120,7 @@ function [u0, alpha,timePerIter] = trackingMPC_reconf_admm(x0, Q_Ni, Ri, N, para
     end
 end
 
+% Local optimization function
 function [w_Ni, vi, elapsedTime] = local_optim(localOptimizer, x0, z_Ni, y_Ni)
                    
     [solutionSet, ~, ~, ~, ~, optimTime] = localOptimizer(x0, z_Ni.x_Ni, z_Ni.x_eNi,...
@@ -116,6 +136,7 @@ function [w_Ni, vi, elapsedTime] = local_optim(localOptimizer, x0, z_Ni, y_Ni)
     elapsedTime= optimTime.solvertime;
 end
 
+% First Initialization of optimizer
 function localOptimizer = init_optimizer(i, Q_Ni, Ri, N, param, rho)
     objective_i = 0;
     constraints_i = [];
@@ -204,11 +225,7 @@ function localOptimizer = init_optimizer(i, Q_Ni, Ri, N, param, rho)
                     (Xi(:,end)-Xei)'*param.Pi{i}*(Xi(:,end)-Xei)+...
                     (Xei - param.Xref{i})'*Si*(Xei - param.Xref{i});
     %----- Terminal set condition (Reconfigurable Terminal Ingredients)--------% 
-%     LMI_terminal = [inv(param.Pi{i})*alpha_i(i), Xi(:,end) - ci(:,i);...
-%                         Xi(:,end)' - ci(:,i)', alpha_i(i)];
-%      constraints_i = [constraints_i, LMI_terminal >= 0];
     constraints_i = [constraints_i, norm(param.Pi{i}^(1/2)*(Xi(:,end)-ci(:,i)),2) <= alpha_i(i)];
-  %  constraints_i = [constraints_i, cone(param.Pi{i}^(1/2)*(Xi(:,end)-ci(:,i)), alpha_i(i))];
     constraints_i = [constraints_i, alpha_i(i) >= 0];
     %--------------------------------------------------------------------------%
     % Constraints for augmented Lagrangian are added to objective

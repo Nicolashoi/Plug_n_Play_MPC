@@ -1,4 +1,35 @@
-
+%% Transition phase MPC based on online terminal ingredients
+% Author:
+%   Nicolas Hoischen
+% BRIEF: 
+    % Implementation of the transition phase algorithm to find a feasible state
+    % before plug-in or plug-out of a subsystem.
+    % Based on M.N. Zeilinger et al. “Plug and play distributed model predictive 
+    % control based on distributed invariance and optimization”. 
+    % In: 52nd IEEE Conference on Decision and Control.
+    % Suited if the redesign phase has been carried out with the passivity
+    % controller.
+    % Implementents the online terminal ingredients for the terminal set
+    % invariant constraints (i.e. computes the terminal set size & costs online)
+    % as described in: Ahmed Aboudonia et al. 
+    % Online Computation of Terminal Ingredients in Distributed Model
+    % Predictive Control for Reference Tracking
+    % solved centrally
+  
+% INPUT: 
+    % x0: Initial state
+    % N: Horizon
+    % paramBefore: DGU system class with old network configuration (before PnP
+    % operation
+    % paramAfter: DGU system class with new network configuration (after PnP
+    % operation
+    % target: Cost function to be minimized, whether distance to current state
+    % or distance to references is minimized
+% OUTPUT:
+    % xs: found steady state
+    % us: found steady control input
+    % alpha: terminal set size matrix for each subsystem
+    
 function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter, target)
     M = paramAfter.nb_subsystems;%length(param.activeDGU);
     %% create variables for optimizer
@@ -8,8 +39,6 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
     U = sdpvar(repmat(nu,1,2*N-1), repmat(M,1,2*N-1),'full');
     % State cell array of size N (timestep), each cell is an array of size nx*M
     X = sdpvar(repmat(nx,1,2*N),repmat(M,1,2*N),'full'); % contains state of each subsystem i
-    %X0 = sdpvar(nx,M,'full'); % state as rows and system number as column
-    %X0 = sdpvar(repmat(nx,1,M),ones(1,M), 'full');
     X_Ni = cell(M,2*N-1); % cell array for neighbor states of i
     % Equilibrium state and input
     Us = sdpvar(nu, M,'full');
@@ -163,7 +192,6 @@ function [xs, us, alpha] = transition_compute_ss(x0, N, paramBefore, paramAfter,
         end
         %%  Terminal Set condition
         constraints = [constraints, norm(paramAfter.Pi{i}^(1/2)*(X{2*N}(:,i)-ci(i)),2) <= alpha(i)];
-          % constraints = [constraints, cone(paramAfter.Pi{i}^(1/2)*(X{2*N}(:,i)-ci(i)),alpha(i))];
         constraints = [constraints, alpha(i) >= 0];
     end  
     

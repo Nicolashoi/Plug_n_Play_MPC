@@ -1,3 +1,20 @@
+%% Generic class to handle PnP operations
+% Author:
+%   Nicolas Hoischen
+% BRIEF:
+    % Class that contains functions for the redesign phase and the transition
+    % phase of the PnP scheme
+    % Function to simulate network based on the controller found from passivity
+    % only or if controller has been found using LQR (for global dynamics)
+    % Also contains functions related to MPC operation and simple simulation
+    % based on feedback gains
+    % Functions for redesign phase based on passivity or on Lyapunov
+    % stabilization theory
+    % Functions for transition phase, based on online terminal ingredients or
+    % distributed synthesis with precomputed terminal set size and cost
+    % functions
+
+
 classdef SimFunctionsPnP
     methods (Static)
         %% ------------------ COMPUTE PASSIVE GAINS ---------------------------%
@@ -85,7 +102,8 @@ classdef SimFunctionsPnP
         end
         %% ------------------------ P&P OPERATIONS------------------------------
         %-------------------------- REDESIGN PHASE-----------------------------%       
-        function [obj, Qi, Ri, Q_Ni, decVariables] = redesignPhase(obj, oldGraph, idxDGU, procedure, QiOld, RiOld, decVarOld)
+        function [obj, Qi, Ri, Q_Ni, decVariables] = redesignPhase(obj, oldGraph, idxDGU,...
+                                            procedure, QiOld, RiOld, decVarOld)
             if procedure == "add"
                 out_neighbors = sort([idxDGU; neighbors(oldGraph, idxDGU)]);  
             elseif procedure == "delete"

@@ -1,3 +1,22 @@
+%% Function to find Qi and Ri for local terminal cost of MPC
+% Author:
+%   Nicolas Hoischen
+% BRIEF: 
+    % Choose Qi, Ri so that the overall terminal cost is a Lyapunov function if
+    % Vf(x) = x^T P x. Satisfy (A_Ni+BiK_Ni)^T Pi (A_Ni+BiK_Ni) - Pi^{lift} +
+    % Qi^{lift} + K_Ni^T R_i K_Ni <= 0 for all subsystem i in the network where 
+    % Pi^{lift} = blkdiag({z_{i,j} P_j}). If the sum of the decision variables 
+    % for each subsystem i is smaller than 1, then it is possible to satisfy the
+    % global Lyapunov equation (A+BK)^T P (A+BK) - P <= -Q - K^T R K
+% INPUT: 
+    % param: DGU system class 
+    % i: subsystem
+% OUTPUT:
+    % Qi, Ri: local cost MPC shaping matrices for subsystem i
+    % decVariables: decision variables for each subsystem (column vector) with 0
+    % at places where j is not a neighbor of i
+    
+%%
 function [Qi, Ri, decVariables] = computeQi_Ri(param, i)
     constraints = [];
     Ri = sdpvar(param.nu, param.nu);
@@ -20,12 +39,13 @@ function [Qi, Ri, decVariables] = computeQi_Ri(param, i)
     
     constraints = [constraints, zDec(setdiff(1:param.nb_subsystems, neighbors_i))...
                                 == 0];
-
+    % Positive definiteness constraints
     constraints = [constraints, Qi >= 1e-2*eye(param.ni), ...
                                 Ri >= 1e-2*eye(param.nu)];
     constraints = [constraints, LMI_i>=0];
     
     objective = sum(zDec(neighbors_i));
+    % minimize decision variable value and maximize matrices Qi and Ri
     objective = objective - 0.1*trace(Qi) - 0.1*trace(Ri);
     ops = sdpsettings('solver', 'MOSEK', 'verbose',0); %options
     diagnostics = optimize(constraints, objective, ops);

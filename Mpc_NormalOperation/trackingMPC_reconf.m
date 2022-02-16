@@ -1,3 +1,22 @@
+%% Online Terminal Ingredients MPC, central unit implementation
+% Author:
+%   Nicolas Hoischen
+% BRIEF: 
+    % Distributed MPC with online terminal ingredients solved centrally
+    % Following Ahmed Aboudonia et al. 
+    % Online Computation of Terminal Ingredients in Distributed Model
+    % Predictive Control for Reference Tracking.
+% INPUT: 
+    % x0: Initial state
+    % Q_Ni, Ri: MPC local cost matrices
+    % N: Horizon
+    % param: DGU system class 
+% OUTPUT:
+    % u0: first control input
+    % alpha: terminal set size
+    % solveTime: solver time (central)
+    
+%%
 function [u0, alpha, solveTime] = trackingMPC_reconf(x0, Q_Ni, Ri, N, param)
     persistent mpc_optimizer
     % initialize controller, if not done already
@@ -152,8 +171,6 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
             % State and input constraints
             constraints = [constraints, param.Gx_Ni{i} * X_Ni{i,n}...
                                       <= param.fx_Ni{i}];
-%             constraints = [constraints, param.Gx_i{i} * X{n}(:,i)...
-%                                       <= param.fx_i{i}];
             constraints = [constraints, param.Gu_i{i} * U{n}(:,i)...
                                        <= param.fu_i{i}];
             % Objective
@@ -173,7 +190,6 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
     %% Create optimizer object 
     ops = sdpsettings('solver', 'MOSEK', 'verbose',1); %options
     parameters_in = {X0};
-    %solutions_out = {[U{:}], [X_eNi{1}], [X_eNi{2}], [X_eNi{3}], di, Ue}; % general form 
     solutions_out = {U{1}, alpha, ci, X{end}}; % get U0 for each subsystem, size nu x M
     mpc_optimizer = optimizer(constraints,objective,ops,parameters_in,solutions_out);
 end

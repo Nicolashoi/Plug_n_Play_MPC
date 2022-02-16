@@ -1,3 +1,23 @@
+%% Distributed MPC for Delta Dynamics Formulation using ADMM
+% Author:
+%   Nicolas Hoischen
+% BRIEF: 
+    % Distributed MPC solved by ADMM
+    % Following Christian Conte et al.
+    % “Distributed synthesis and control of constrained linear systems”.
+    % In: 2012 American Control Conference (ACC)
+% INPUT: 
+    % x0: Initial state in delta Formulation
+    % alpha: Terminal set size
+    % Q_Ni, Ri: MPC local cost matrices
+    % N: Horizon
+    % param: DGU system class 
+% OUTPUT:
+    % u0: first control input (delta formulation)
+    % Xend: state at horizon N in delta formualtion
+    % timerPerIter: average maximum time in an iteration of ADMM   
+    
+%% Main ADMM Function
 function [u0, Xend,timePerIter] = mpc_delta_admm(x0, alpha, Q_Ni, Ri, N, param)
     rho = 0.25;
     Tk = 0; k = 2; l=1;
@@ -52,7 +72,6 @@ function [u0, Xend,timePerIter] = mpc_delta_admm(x0, alpha, Q_Ni, Ri, N, param)
             y_Ni{i,k} = add_struct(y_Ni{i,l}, ...
                             structfun(@(x) rho.*x, y_Ni_inter, 'Un', false)) ; 
         end
-       
         % Terminal condition which is centralized (good for having an estimate 
         % of how much time iteration are needed
         if centralStopCond
@@ -83,6 +102,7 @@ function [u0, Xend,timePerIter] = mpc_delta_admm(x0, alpha, Q_Ni, Ri, N, param)
     end
 end
 
+% Local optimization function
 function [w_Ni, vi, elapsedTime] = local_optim(localOptimizer, x0,z_Ni,...
                                                y_Ni, alpha_i)
                         
@@ -93,7 +113,7 @@ function [w_Ni, vi, elapsedTime] = local_optim(localOptimizer, x0,z_Ni,...
     elapsedTime= optimTime.solvertime;
 end
 
-
+% First Initialization of optimizer
 function localOptimizer = init_optimizer(i, Q_Ni, Ri, N, param, rho)
     objective_i = 0;
     constraints_i = [];
@@ -159,7 +179,6 @@ function localOptimizer = init_optimizer(i, Q_Ni, Ri, N, param, rho)
     localOptimizer = optimizer(constraints_i,objective_i,ops,parameters_in,solutions_out);
    
 end
-
 
 
 function [constraints_i, objective_i] = dynamicsConstraints(constraints_i,objective_i,...

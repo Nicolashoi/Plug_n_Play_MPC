@@ -1,10 +1,22 @@
-%% Algorithm 2: Online Distributed MPC
+%% MPC for Delta Dynamics Formulation
 % Author:
 %   Nicolas Hoischen
-% BRIEF: % Online mpc controller function. Executed at every subsystem. 
-% Following Algorithm 2 of "Distributed Synthesis and Control of Constrained
-% Linear Systems"
-
+% BRIEF: 
+    % Distributed MPC but solved centrally
+    % Following Christian Conte et al.
+    % “Distributed synthesis and control of constrained linear systems”.
+    % In: 2012 American Control Conference (ACC)
+% INPUT: 
+    % x0: Initial state in delta Formulation
+    % alpha: Terminal set size
+    % Q_Ni, Ri: MPC local cost matrices
+    % N: Horizon
+    % param: DGU system class  
+% OUTPUT:
+    % u0: first control input (delta formulation)
+    % Xend: state at horizon N in delta formualtion
+    % solveTime: solver time (central)
+%% 
 function [u0, Xend,solveTime] = mpc_delta(x0, alpha, Q_Ni, Ri, N, param)
     persistent mpc_optimizer
     % initialize controller, if not done already
@@ -56,7 +68,7 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
             % state constraints
             constraints = [constraints, param.Gx_i{i} * X{k}(:,i)...
                                       <= param.fx_i{i}];
-%             % input constraints
+             % input constraints
             constraints = [constraints, param.Gu_i{i} * U{k}(:,i)...
                                        <= param.fu_i{i}];
             % sum of local functions l(xi,uf) %
@@ -67,15 +79,10 @@ function mpc_optimizer = init_optimizer(Q_Ni, Ri, N, param)
         objective = objective + X{end}(:,i)'*param.Pi{i}*X{end}(:,i);
         constraints = [constraints, norm(param.Pi{i}^(1/2)*X{end}(:,i),2) <=...
                         sqrt(alpha_var(i))];
-        %constraints = [constraints, cone(param.Pi{i}^(1/2)*X{end}(:,i), sqrt(alpha_var(i)))];
-%         LMI_terminalSet = [inv(param.Pi{i})*alpha_var(i), X{end}(:,i);...
-%                         X{end}(:,i)', alpha_var(i)];
-%         constraints = [constraints, LMI_terminalSet >= 0];
     end        
     %% Create optimizer object 
     ops = sdpsettings('verbose',1); %options
     parameters_in = {X0, alpha_var};
-    %solutions_out = {[U{1}], [X{:}], [X_Ni{:}]}; % general form 
     solutions_out = {U{1}, [X{end}]}; % get U0 for each subsystem, size nu x M
     mpc_optimizer = optimizer(constraints,objective,ops,parameters_in,solutions_out);
 end

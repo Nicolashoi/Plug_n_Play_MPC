@@ -1,3 +1,21 @@
+%% MPC for regulation to steady-state 
+% Author:
+%   Nicolas Hoischen
+% BRIEF: 
+    % MPC implementation to regulate the system to the found steady state during
+    % the transition phase. Aim for x(N) = xs at horizon N,
+    % Implemented centrally
+% INPUT: 
+    % x0: Initial state
+    % N: Horizon
+    % param: DGU system class  
+    % xs: steady state
+    % us: input target (at steady state)
+    % Qi, Ri: MPC local cost matrices
+% OUTPUT:
+    % u0: first control input
+
+%%
 function u0 = regulation2ss(x0, N, param, xs, us, Qi, Ri)
     persistent mpc_optimizer
     % initialize controller, if not done already

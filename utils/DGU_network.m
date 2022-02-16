@@ -1,4 +1,13 @@
-
+%% Generic class to define a DGU_network
+% Author:
+%   Nicolas Hoischen
+% BRIEF:
+    % Class to define a DGU network with different methods to create new
+    % references, new connections etc..
+    % Automatically computes the dynamics and references given electrical
+    % parameters as input
+    % Also contains a method to plot the DGU state & duty cycle evolution 
+    % Handles both normal formulation and delta formulation of the dynamics
 
 classdef DGU_network
     properties
@@ -68,11 +77,12 @@ classdef DGU_network
                 obj.nb_subsystems = nb_subsystems;
             end
         end
-        
+        % define which DGUs are active
         function obj = setActiveDGU(obj, activeDGU)
             obj.activeDGU = activeDGU;
         end
-        
+        % Set the interconnection strengths in the network, Laplacian & Graph
+        % Matrix
         function obj = setConnectionsGraph(obj, Rij_mat)
             obj.Rij_mat = Rij_mat;
             obj.Agraph = Rij_mat;
@@ -126,7 +136,8 @@ classdef DGU_network
             [obj.di_ref, obj.Iti_ref] = compute_ref(obj.nb_subsystems, obj.Agraph,...
                                                     obj.Vr, obj.Il, obj.Rij_mat, obj.Ri, obj.Vin); 
         end
-          
+        % computes the references depending if the DGU dynamics are in delta
+        % formulation or not
         function obj = compute_Ref_Constraints(obj, delta_config)
             [obj.di_ref, obj.Iti_ref] = compute_ref(obj.nb_subsystems, obj.Agraph,...
                                                     obj.Vr, obj.Il, obj.Rij_mat, obj.Ri, obj.Vin); 
@@ -161,6 +172,8 @@ classdef DGU_network
                 end
         end
        
+        % Set constraints, depending if the dynamics are in delta formulation or
+        % not
         function obj = setConstraints(obj, delta_config)
           obj.delta_config = delta_config;
           for i= 1:obj.nb_subsystems
@@ -187,7 +200,9 @@ classdef DGU_network
             obj.fx_Ni{i} = vertcat(obj.fx_i{out_neighbors});
           end   
         end    
-             
+        
+        % Plots the DGU states (Voltage & current) and the control input (duty
+        % cycle)
         function plot_DGU_system(X,U, config, control_type, param, simStart,...
                             dgu2plot, annot2plot)  
          M = length(dgu2plot);
@@ -285,7 +300,8 @@ classdef DGU_network
     end  % end static methods
 end  % end class
 
-
+% Function to change from the laplacian graph based representation (used in the
+% passivity based redesign phase) to the system xi+ = A_Ni x_Ni + Bi ui
 function A_Ni = change_system_representation(Ai,Fi,Ci,Agraph)
             M = size(Ai,2); % number of subsystems    
             G = graph(Agraph);
@@ -295,18 +311,17 @@ function A_Ni = change_system_representation(Ai,Fi,Ci,Agraph)
                 Acell = cell(1,length(out_neighbors));
                 for j=1:length(out_neighbors)
                     if isequal(out_neighbors(j), i)
-                        Acell{j} = Ai{i} - Fi{i}*sum(Agraph(i,:))*Ci{i};
-                        
+                        Acell{j} = Ai{i} - Fi{i}*sum(Agraph(i,:))*Ci{i};    
                     else
                         Acell{j} = Fi{i}*Agraph(i, out_neighbors(j))*...
                                              Ci{out_neighbors(j)};
                     end
-                   
                 end
                 A_Ni{i} = cell2mat(Acell);  
             end
 end
-
+% Computes input & current reference (setpoints/equilibrium) given 
+% voltage references
 function [di_ref, Iti_ref] = compute_ref(M, Agraph, Vr, Il, Rij, R, Vin)
             di_ref = zeros(1,M); Iti_ref = zeros(1,M);
             G = digraph(Agraph);

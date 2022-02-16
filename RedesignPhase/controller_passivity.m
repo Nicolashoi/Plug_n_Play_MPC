@@ -1,20 +1,24 @@
-%% YALMIP & MOSEK Semi-definite program
+%% Semi-definite program to compute passivating feedback controllers
 % Author:
 %   Nicolas Hoischen
 % BRIEF:
-%   Controller function to compute Ki to make the subsystem passive. 
-%   From "Passivity-Based Decentralized Control for Discrete-Time Large-Scale
-%         Systems"
+%   Controller function to compute Ki to make each subsystem strictly passive. 
+%   Intended for the redesign phase based on passivity.
+%   From Ahmed Aboudonia et al. "Passivity-Based Decentralized Control for 
+%   "Discrete-Time Large-Scale Systems"
+%   IEEE Control Systems Letters 5.6 (2021)
 % INPUT:
-%   Ai, Bi, Ci, Fi: LTI dynamics of subsystem i
-%   U: L_tilde*C
-%   W: C^T * L_tilde where L_tilde is the augmented laplacian
+    % Ai, Bi, Ci, Fi: LTI dynamics of subsystem i
+    % L_tilde: Graph augmented Laplacian
+    % C_global: C matrix of the overall system
 % OUTPUT:
-%   Ki: decentralized passivity-based control state feedback gain
-%   Di: positive-definite diagonal matrix
-%   Pi: positive-definite matrix
-%   Gamma_i: positive-definite diagonal matrix
+    % Ki: decentralized passivity-based control state feedback gain
+    % Di: positive-definite diagonal matrix
+    % Pi: positive-definite matrix
+    % Gamma_i: positive-definite diagonal matrix
+    % feasible: boolean true if problem is feasible
 
+%%
 function [Ki, Di, Pi, Gamma_i, feasible] = controller_passivity(A, B, C, F, L_tilde,...
                                                       C_global, i)
     %% Interconnection Variables
@@ -31,7 +35,7 @@ function [Ki, Di, Pi, Gamma_i, feasible] = controller_passivity(A, B, C, F, L_ti
     H = diag(sdpvar(ni,1)); % diagonal matrix as defined in Th.1
     G = sdpvar(mi,ni, 'full');
     S = diag(sdpvar(mi,1)); % diagonal matrix as defined in Th.1
-    objective = trace(H); %norm(G);%%trace(H)-trace(E);% yalmip always assumes minimization so (-) to max
+    objective = trace(H); %norm(G);%trace(H)-trace(E);% yalmip always assumes minimization
     %% Equation 7
     LMI = [E, 1/2*E*C', (A*E + B*G)', E;...
            1/2*C*E, 1/2*S + 1/2*S', F', zeros(size(F',1),size(E,2));...

@@ -1,4 +1,34 @@
+%% Transition phase MPC based on delta formulation of the dynamics with ADMM
+% Author:
+%   Nicolas Hoischen
+% BRIEF: 
+    % Implementation of the transition phase algorithm to find a feasible state
+    % before plug-in or plug-out of a subsystem.
+    % Based on M.N. Zeilinger et al. “Plug and play distributed model predictive 
+    % control based on distributed invariance and optimization”. 
+    % In: 52nd IEEE Conference on Decision and Control.
+    % Suited if the redesign phase has been carried out with the distributed
+    % synthesis algorithm to find terminal set sizes (based on Lyapunov)
+    % solved using ADMM
+    % Used as benchmark to compare agains transition phase based on online
+    % terminal ingredients
+  
+% INPUT: 
+    % x0: Initial state
+    % N: Horizon
+    % paramBefore: DGU system class with old network configuration (before PnP
+    % operation
+    % paramAfter: DGU system class with new network configuration (after PnP
+    % operation
+    % target: Cost function to be minimized, whether distance to current state
+    % or distance to references is minimized
+    % alpha: terminal set size
+% OUTPUT:
+    % xs: found steady state
+    % us: found steady control input
+    % timerPerIter: average maximum time in an iteration of ADMM 
 
+%% Main ADMM Function
 function [xs, us, timePerIter] = transition_compute_delta_ss_admm(x0, N, paramBefore, ...
                                                            paramAfter, target, alpha)
     rho = 0.25;

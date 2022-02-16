@@ -1,3 +1,21 @@
+%% MPC for regulation to steady-state ADMM
+% Author:
+%   Nicolas Hoischen
+% BRIEF: 
+    % MPC implementation to regulate the system to the found steady state during
+    % the transition phase. Aim for x(N) = xs at horizon N,
+    % Implemented with ADMM (distributed fashion)
+% INPUT: 
+    % x0: Initial state
+    % N: Horizon
+    % param: DGU system class  
+    % xs: steady state
+    % us: input target (at steady state)
+    % Qi, Ri: MPC local cost matrices
+% OUTPUT:
+    % u0: first control input
+    
+%% Main ADMM Function
 function u0 = regulation2ss_admm(x0, N, param, xs, us, Qi, Ri)
     rho = 0.25;
     TMAX = 1;
@@ -23,7 +41,6 @@ function u0 = regulation2ss_admm(x0, N, param, xs, us, Qi, Ri)
             Tk = Tk + elapsedTime;
             % obtain sorted list of neighbors of system i
             neighbors_i = sort([i;neighbors(param.NetGraph, i)]);
-            %             idx_Ni = logical(kron((neighbors_i==i), ones(param.ni,1)));
             for j = neighbors_i'
                 wi{j,k,i}.xi = param.Wij{i}{j}*w_Ni{i,k}.x_Ni; % estimation of neighbors j by system i
             end

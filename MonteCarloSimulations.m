@@ -1,4 +1,11 @@
-%%
+%% File used to generate simulations & plots for the report
+% Author:
+%   Nicolas Hoischen
+% BRIEF:
+    % File used to compare the new PnP scheme with passivity based redesign
+    % phase and online terminal ingredient transition phase with the benchmark
+    % PnP algorithm.
+
 clear
 % USE MOSEK as solver (ADD to path)
 addpath 'C:\Program Files\Mosek\9.3\toolbox\R2015aom'

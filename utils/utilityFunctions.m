@@ -1,7 +1,20 @@
-
+%% Generic class with utility functions
+% Author:
+%   Nicolas Hoischen
+% BRIEF:
+    % Class to define functions to find local cost shaping matrices for MPC,
+    % read electrical parameters from a .txt file for DGU, compute cost
+    % function and a function to compute the tracking error to the references.
+    
 classdef utilityFunctions
     methods (Static)
-          % Compute initial state and matrices 
+          % Function to define initial states and matrices Qi, Ri. If passivity
+          % is true (redesign phase based on passivity) then compute Qi and Ri
+          % according to the optimization algorithm ensuring lyapunov asymptotic
+          % stability of the global system for the terminal cost. If passivity
+          % is false, the Q_Ni, Ri can be chosen freely. Initial state depends
+          % whether the dynamics are in delta configuration (delta_config = true,
+          % otherwise false)
           function [x0, Q_Ni, Ri, Qi, decVariables] = tuningParam(param, delta_config, passivity)
             M = param.nb_subsystems;
             Q_Ni = cell(1, M); 
@@ -22,7 +35,7 @@ classdef utilityFunctions
             end
             %% Get Qi, Ri and Q_Ni
             % If passivity is used, it is necessary to find Qi and Ri satisfying
-            % the global Riccati equation to ensure asymptotic stability
+            % the global Lyapunov equation to ensure asymptotic stability
             switch passivity
                 case true
                     for i=param.activeDGU
